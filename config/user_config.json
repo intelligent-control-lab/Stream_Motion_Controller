@@ -1,0 +1,20 @@
+{
+    "DH_fname":"/config/robot_properties/Fanuc_DH.txt",
+    "robot_base_fname":"/config/robot_properties/Fanuc_base.txt",
+    "SSA_Enable":0,
+    "Use_Robot":0,
+    "JPC_travel_time":1,
+    "Infinite_tasks":1,
+    "Start_with_assemble":1,
+    "Robot_IP":"192.168.1.100",
+    "Simulation_controller_topic":
+    {
+        "J1":"/fanuc_gazebo/joint1_position_controller/command",
+        "J2":"/fanuc_gazebo/joint2_position_controller/command",
+        "J3":"/fanuc_gazebo/joint3_position_controller/command",
+        "J4":"/fanuc_gazebo/joint4_position_controller/command",
+        "J5":"/fanuc_gazebo/joint5_position_controller/command",
+        "J6":"/fanuc_gazebo/joint6_position_controller/command"
+    },
+    "Nominal_mode":"jpc"
+}
