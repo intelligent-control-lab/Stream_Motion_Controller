@@ -2,7 +2,7 @@
 #include "Utils/Math.hpp"
 #include "UDP_Socket.hpp"
 
-namespace fanuc_stmotion_controller
+namespace stmotion_controller
 {
 namespace udp
 {

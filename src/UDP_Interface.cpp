@@ -1,6 +1,6 @@
 #include "UDP_Interface.hpp"
 
-namespace fanuc_stmotion_controller
+namespace stmotion_controller
 {
 namespace udp
 {

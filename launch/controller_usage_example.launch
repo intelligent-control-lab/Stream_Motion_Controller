@@ -1,4 +1,4 @@
 <launch>
-    <node name="fanuc_stmotion_controller_controller_usage_example" pkg="fanuc_stmotion_controller" type="fanuc_stmotion_controller_controller_usage_example" output="screen" required="true">
+    <node name="stmotion_controller_controller_usage_example" pkg="stmotion_controller" type="stmotion_controller_controller_usage_example" output="screen" required="true">
     </node>
 </launch>

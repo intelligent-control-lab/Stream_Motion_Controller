@@ -2,9 +2,9 @@
 
 using namespace std::chrono;
 
-fanuc_stmotion_controller::math::VectorJd robot_q = Eigen::MatrixXd::Zero(6, 1);
-fanuc_stmotion_controller::math::VectorJd robot_qd = Eigen::MatrixXd::Zero(6, 1);
-fanuc_stmotion_controller::math::VectorJd robot_qdd = Eigen::MatrixXd::Zero(6, 1);
+stmotion_controller::math::VectorJd robot_q = Eigen::MatrixXd::Zero(6, 1);
+stmotion_controller::math::VectorJd robot_qd = Eigen::MatrixXd::Zero(6, 1);
+stmotion_controller::math::VectorJd robot_qdd = Eigen::MatrixXd::Zero(6, 1);
 
 void robotStateCallback(const std_msgs::Float32MultiArray::ConstPtr& msg)
 {
@@ -13,7 +13,7 @@ void robotStateCallback(const std_msgs::Float32MultiArray::ConstPtr& msg)
     robot_qdd << msg->data[2], msg->data[5], msg->data[8], msg->data[11], msg->data[14], msg->data[17];
 }
 
-bool reached_goal(const fanuc_stmotion_controller::math::VectorJd& goal)
+bool reached_goal(const stmotion_controller::math::VectorJd& goal)
 {
     for(int i=0; i<6; i++)
     {
@@ -42,15 +42,15 @@ int main(int argc, char **argv)
         joint_goal.col(4) << 0, 0, 0, 0, 0, 0;
         int robot_dof = 6;
        
-        ros::Publisher goal_pub = nh.advertise<std_msgs::Float32MultiArray>("/fanuc_stmotion_controller_bringup/robot_goal", robot_dof);
-        ros::Publisher jpc_time_pub = nh.advertise<std_msgs::Float64>("/fanuc_stmotion_controller_bringup/jpc_travel_time", 1);
-        ros::Subscriber robot_state_sub = nh.subscribe("/fanuc_stmotion_controller_bringup/robot_state", robot_dof * 3, robotStateCallback);
+        ros::Publisher goal_pub = nh.advertise<std_msgs::Float32MultiArray>("/stmotion_controller_bringup/robot_goal", robot_dof);
+        ros::Publisher jpc_time_pub = nh.advertise<std_msgs::Float64>("/stmotion_controller_bringup/jpc_travel_time", 1);
+        ros::Subscriber robot_state_sub = nh.subscribe("/stmotion_controller_bringup/robot_state", robot_dof * 3, robotStateCallback);
         std_msgs::Float32MultiArray goal_msg;
         std_msgs::Float64 jpc_time_msg;
         
         int num_tasks = joint_goal.cols();
         int task_idx = -1;
-        fanuc_stmotion_controller::math::VectorJd cur_goal = Eigen::MatrixXd::Zero(6, 1);
+        stmotion_controller::math::VectorJd cur_goal = Eigen::MatrixXd::Zero(6, 1);
         cur_goal = joint_goal.col(0);
 
         while(ros::ok)

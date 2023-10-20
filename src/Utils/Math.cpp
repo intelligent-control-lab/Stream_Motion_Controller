@@ -2,7 +2,7 @@
 
 #undef inverse
 
-namespace fanuc_stmotion_controller
+namespace stmotion_controller
 {
 namespace math
 {

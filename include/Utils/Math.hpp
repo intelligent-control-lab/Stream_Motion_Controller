@@ -29,7 +29,7 @@ This notice must appear in all copies of this file and its derivatives.
 
 #define N_JOINTS 6 // ruic: for now 6 joints
 
-namespace fanuc_stmotion_controller
+namespace stmotion_controller
 {
 namespace math
 {

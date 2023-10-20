@@ -2,7 +2,7 @@
 #include "Robot.hpp"
 using namespace std::chrono;
 
-fanuc_stmotion_controller::math::VectorJd controller_goal = Eigen::MatrixXd::Zero(6, 1);
+stmotion_controller::math::VectorJd controller_goal = Eigen::MatrixXd::Zero(6, 1);
 double new_jpc_travel_time = 10.0;
 
 void goalCallback(const std_msgs::Float32MultiArray::ConstPtr& msg)
@@ -21,7 +21,7 @@ int main(int argc, char **argv)
     {
         bool use_robot, ssa_enb;
         double jpc_travel_time = 0.0;
-        ros::init(argc, argv, "fanuc_controller_node");
+        ros::init(argc, argv, "stmotion_controller_node");
         ros::NodeHandle nh("~");
         ROS_INFO_STREAM("namespace of nh = " << nh.getNamespace());
         std::string config_fname, root_pwd, DH_fname, robot_base_fname, robot_ip, nominal_mode;
@@ -64,15 +64,15 @@ int main(int argc, char **argv)
         ros::Rate loop_rate(150);
         unsigned int microsecond = 1000;
 
-        fanuc_stmotion_controller::udp::UDP_Interface::Ptr robot_connection = std::make_shared<fanuc_stmotion_controller::udp::UDP_Interface>();
-        fanuc_stmotion_controller::math::VectorJd q;
-        fanuc_stmotion_controller::robot::Robot::Ptr robot = std::make_shared<fanuc_stmotion_controller::robot::Robot>();
+        stmotion_controller::udp::UDP_Interface::Ptr robot_connection = std::make_shared<stmotion_controller::udp::UDP_Interface>();
+        stmotion_controller::math::VectorJd q;
+        stmotion_controller::robot::Robot::Ptr robot = std::make_shared<stmotion_controller::robot::Robot>();
         robot->Setup(DH_fname, robot_base_fname);
         robot->set_JPC_speed(jpc_travel_time);
         robot->print_robot_property();
-        fanuc_stmotion_controller::math::VectorJd jerk_ref = Eigen::MatrixXd::Zero(6, 1);
-        fanuc_stmotion_controller::math::VectorJd jerk_safe = Eigen::MatrixXd::Zero(6, 1);
-        fanuc_stmotion_controller::udp::recv_pack recv_packet;
+        stmotion_controller::math::VectorJd jerk_ref = Eigen::MatrixXd::Zero(6, 1);
+        stmotion_controller::math::VectorJd jerk_safe = Eigen::MatrixXd::Zero(6, 1);
+        stmotion_controller::udp::recv_pack recv_packet;
         ros::Subscriber jpc_travel_time_sub = nh.subscribe("jpc_travel_time", 1, jpcTravelTimeCallback);
         ros::Publisher robot_state_pub = nh.advertise<std_msgs::Float32MultiArray>("robot_state", robot->robot_dof() * 3); // pos, vel, acc
         ros::Subscriber goal_sub = nh.subscribe("robot_goal", robot->robot_dof(), goalCallback);

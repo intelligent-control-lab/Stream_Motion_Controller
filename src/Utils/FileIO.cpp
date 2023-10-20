@@ -17,7 +17,7 @@ This notice must appear in all copies of this file and its derivatives.
 */
 #include <Utils/FileIO.hpp>
 
-namespace fanuc_stmotion_controller
+namespace stmotion_controller
 {
 namespace io
 {

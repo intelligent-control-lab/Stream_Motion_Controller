@@ -2,7 +2,7 @@
 #include "Utils/Math.hpp"
 #include "Utils/FileIO.hpp"
 
-namespace fanuc_stmotion_controller
+namespace stmotion_controller
 {
 namespace robot
 {
@@ -44,8 +44,8 @@ class Robot
         Eigen::MatrixXd Bm_;
         Eigen::MatrixXd Ac_;
         Eigen::MatrixXd Bc_;
-        fanuc_stmotion_controller::math::Capsule cap_[6];
-        fanuc_stmotion_controller::math::Capsule cap_cur_[6];
+        stmotion_controller::math::Capsule cap_[6];
+        stmotion_controller::math::Capsule cap_cur_[6];
         Eigen::MatrixXd M_[8];
         double critical_dist_ = 10000.0;
         Eigen::MatrixXd critical_pts_;
@@ -85,10 +85,10 @@ class Robot
         int ssa_on_ = 0;
 
         int nlink_human_ = 6;
-        fanuc_stmotion_controller::math::Capsule human_cap_[6];
+        stmotion_controller::math::Capsule human_cap_[6];
 
         // Capsules size = 1 (base) + n_joint + 1 (ee)
-        std::vector<fanuc_stmotion_controller::math::Capsule> capsules_;
+        std::vector<stmotion_controller::math::Capsule> capsules_;
          
 
     /* -------------------------------------------------------------------------- */

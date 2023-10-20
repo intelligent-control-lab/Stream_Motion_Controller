@@ -9,9 +9,9 @@ from std_msgs.msg import Float64
 class Robot():
     def __init__(self):
         self.dof = 6
-        self.robot_goal_pub = rospy.Publisher('/fanuc_stmotion_controller_bringup/robot_goal', Float32MultiArray, queue_size=6)
-        self.robot_state_sub = rospy.Subscriber("/fanuc_stmotion_controller_bringup/robot_state", Float32MultiArray, self.robot_state_callback)
-        self.robot_travel_time_pub = rospy.Publisher('/fanuc_stmotion_controller_bringup/jpc_travel_time', Float64, queue_size=1)
+        self.robot_goal_pub = rospy.Publisher('/stmotion_controller_bringup/robot_goal', Float32MultiArray, queue_size=6)
+        self.robot_state_sub = rospy.Subscriber("/stmotion_controller_bringup/robot_state", Float32MultiArray, self.robot_state_callback)
+        self.robot_travel_time_pub = rospy.Publisher('/stmotion_controller_bringup/jpc_travel_time', Float64, queue_size=1)
         self.robot_goal = np.zeros(self.dof)
         self.robot_goal_msg = Float32MultiArray()
         self.robot_state = np.zeros(self.dof)

@@ -2,7 +2,7 @@
 #include <Utils/Math.hpp>
 #include <Utils/ErrorHandling.hpp>
 
-namespace fanuc_stmotion_controller
+namespace stmotion_controller
 {
 namespace io
 {

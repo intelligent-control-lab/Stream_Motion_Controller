@@ -1,6 +1,6 @@
 #include "Robot.hpp"
 
-namespace fanuc_stmotion_controller
+namespace stmotion_controller
 {
 namespace robot
 {
@@ -26,7 +26,7 @@ void Robot::print_robot_property()
 void Robot::set_DH_tool(const std::string fname)
 {
     std::cout << "Load DH tool from: " << fname << std::endl;
-    DH_tool_ = fanuc_stmotion_controller::io::LoadMatFromFile(fname);
+    DH_tool_ = stmotion_controller::io::LoadMatFromFile(fname);
     tool_inv_ << cos(0), -sin(0)*cos(0),  sin(0)*sin(0),  DH_tool_(5, 2) * cos(0),
                  sin(0),  cos(0)*cos(0), -cos(0)*sin(0),  DH_tool_(5, 2) * sin(0),
                  0,       sin(0),         cos(0),        -DH_tool_(5, 1),
@@ -37,7 +37,7 @@ void Robot::set_DH_tool(const std::string fname)
 void Robot::set_DH_tool_assemble(const std::string fname)
 {
     std::cout << "Load DH tool for assemble from: " << fname << std::endl;
-    DH_tool_assemble_ = fanuc_stmotion_controller::io::LoadMatFromFile(fname);
+    DH_tool_assemble_ = stmotion_controller::io::LoadMatFromFile(fname);
     tool_assemble_inv_ << cos(0), -sin(0)*cos(0),  sin(0)*sin(0),  DH_tool_assemble_(5, 2) * cos(0),
                           sin(0),  cos(0)*cos(0), -cos(0)*sin(0),  DH_tool_assemble_(5, 2) * sin(0),
                           0,       sin(0),         cos(0),        -DH_tool_assemble_(5, 1),
@@ -48,7 +48,7 @@ void Robot::set_DH_tool_assemble(const std::string fname)
 void Robot::set_DH_tool_disassemble(const std::string fname)
 {
     std::cout << "Load DH tool for disassemble from: " << fname << std::endl;
-    DH_tool_disassemble_ = fanuc_stmotion_controller::io::LoadMatFromFile(fname);
+    DH_tool_disassemble_ = stmotion_controller::io::LoadMatFromFile(fname);
     tool_disassemble_inv_ << cos(0), -sin(0)*cos(0),  sin(0)*sin(0),  DH_tool_disassemble_(5, 2) * cos(0),
                              sin(0),  cos(0)*cos(0), -cos(0)*sin(0),  DH_tool_disassemble_(5, 2) * sin(0),
                              0,       sin(0),         cos(0),        -DH_tool_disassemble_(5, 1),
@@ -73,10 +73,10 @@ void Robot::Setup(const std::string& DH_fname, const std::string& base_fname)
         qdd_.row(i) << 0.0;
     }
     std::cout << "Load DH from: " << DH_fname << std::endl;
-    DH_ = fanuc_stmotion_controller::io::LoadMatFromFile(DH_fname);
+    DH_ = stmotion_controller::io::LoadMatFromFile(DH_fname);
     
     std::cout << "Load Robot Base from: " << base_fname << std::endl;
-    base_frame_ = fanuc_stmotion_controller::io::LoadMatFromFile(base_fname);
+    base_frame_ = stmotion_controller::io::LoadMatFromFile(base_fname);
     T_base_inv_ = Eigen::Matrix4d::Identity(4, 4);
     T_base_inv_.col(3) << base_frame_, 1;
     T_base_inv_ = math::PInv(T_base_inv_);

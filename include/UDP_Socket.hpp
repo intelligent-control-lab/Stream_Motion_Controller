@@ -5,7 +5,7 @@
 #include <arpa/inet.h> 
 #include <netinet/in.h>
 
-namespace fanuc_stmotion_controller
+namespace stmotion_controller
 {
 namespace udp
 {

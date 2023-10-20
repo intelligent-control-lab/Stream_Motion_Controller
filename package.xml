@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>fanuc_stmotion_controller</name>
+  <name>stmotion_controller</name>
   <version>0.0.0</version>
   <description>The fanuc stmotion controller package</description>
 
-  <maintainer email="ruixuanl@andrew.cmu.edu">ruic</maintainer>
+  <maintainer email="ruixuanl@andrew.cmu.edu">ruixuanl</maintainer>
 
   <license>TODO</license>
 
