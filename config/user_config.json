@@ -4,8 +4,6 @@
     "SSA_Enable":0,
     "Use_Robot":0,
     "JPC_travel_time":1,
-    "Infinite_tasks":1,
-    "Start_with_assemble":1,
     "Robot_IP":"192.168.1.100",
     "Simulation_controller_topic":
     {
