@@ -11,4 +11,6 @@ roslaunch stmotion_controller controller_node.launch
 3. Launch your task planning file:
 ```
 roslaunch stmotion_controller controller_usage_example.launch
+# OR
+rosrun stmotion_controller controller_usage_example.py
 ```
