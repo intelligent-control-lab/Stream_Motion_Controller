@@ -37,3 +37,6 @@ If you find this repository helpful, please kindly cite our works.
       year={2022}
 }
 ```
+
+## License
+This project is licensed under the MIT License.
