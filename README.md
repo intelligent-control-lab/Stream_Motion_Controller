@@ -1,5 +1,5 @@
 # Stream_Motion_Controller
-This repository contains the C++ controller for controlling the Fanuc robots using the Stream Motion interface.
+This repository contains the C++ controller for controlling the Fanuc robots using the Stream Motion interface. Supports joint goal tracking for now. Comming features: 1. joint path tracking, 2. Cart goal tracking, 3. Cart path tracking.
 
 
 ## Instructions
