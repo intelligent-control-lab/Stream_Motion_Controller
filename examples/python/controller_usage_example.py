@@ -52,7 +52,7 @@ def main():
     
     goal_idx = -1
     cur_goal = goal_list[0]
-    time.sleep(0.1)
+    time.sleep(1)
     while not rospy.is_shutdown():
         if(goal_idx == -1 or fanuc.goal_reached()):
             print("Reached: ", goal_idx)
@@ -61,7 +61,7 @@ def main():
             elif(goal_idx == 1):
                 fanuc.set_robot_travel_time(5)
             elif(goal_idx == 3):
-                fanuc.set_robot_travel_time(0.1)
+                fanuc.set_robot_travel_time(2)
             
             goal_idx += 1
             if(goal_idx < len(goal_list)):
