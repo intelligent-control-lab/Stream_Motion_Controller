@@ -1,6 +1,6 @@
 {
-    "DH_fname":"/config/robot_properties/Fanuc_DH.txt",
-    "robot_base_fname":"/config/robot_properties/Fanuc_base.txt",
+    "DH_fname":"/config/robot_properties/gp4_DH.txt",
+    "robot_base_fname":"/config/robot_properties/gp4_base.txt",
     "SSA_Enable":0,
     "Use_Robot":0,
     "JPC_travel_time":1,

@@ -24,10 +24,11 @@ int main(int argc, char **argv)
         ros::init(argc, argv, "stmotion_controller_node");
         ros::NodeHandle nh("~");
         ROS_INFO_STREAM("namespace of nh = " << nh.getNamespace());
-        std::string config_fname, root_pwd, DH_fname, robot_base_fname, robot_ip, nominal_mode;
+        std::string config_fname, robot_name, root_pwd, DH_fname, robot_base_fname, robot_ip, nominal_mode;
         std::string j1_topic, j2_topic, j3_topic, j4_topic, j5_topic, j6_topic;
         nh.getParam("config_fname", config_fname);
         nh.getParam("root_pwd", root_pwd);
+        nh.getParam("robot_name", robot_name);
 
         std::ifstream config_file(config_fname, std::ifstream::binary);
         Json::Value config;
@@ -38,12 +39,12 @@ int main(int argc, char **argv)
         use_robot = config["Use_Robot"].asBool();
         jpc_travel_time = config["JPC_travel_time"].asDouble();
         robot_ip = config["Robot_IP"].asString();
-        j1_topic = config["Simulation_controller_topic"]["J1"].asString();
-        j2_topic = config["Simulation_controller_topic"]["J2"].asString();
-        j3_topic = config["Simulation_controller_topic"]["J3"].asString();
-        j4_topic = config["Simulation_controller_topic"]["J4"].asString();
-        j5_topic = config["Simulation_controller_topic"]["J5"].asString();
-        j6_topic = config["Simulation_controller_topic"]["J6"].asString();
+        j1_topic = "/" + robot_name + "/joint1_position_controller/command";
+        j2_topic = "/" + robot_name + "/joint2_position_controller/command";
+        j3_topic = "/" + robot_name + "/joint3_position_controller/command";
+        j4_topic = "/" + robot_name + "/joint4_position_controller/command";
+        j5_topic = "/" + robot_name + "/joint5_position_controller/command";
+        j6_topic = "/" + robot_name + "/joint6_position_controller/command";
         nominal_mode = config["Nominal_mode"].asString();
         new_jpc_travel_time = jpc_travel_time;
         Eigen::MatrixXd cur_q, cur_qd, cur_qdd;
@@ -73,9 +74,9 @@ int main(int argc, char **argv)
         stmotion_controller::math::VectorJd jerk_ref = Eigen::MatrixXd::Zero(6, 1);
         stmotion_controller::math::VectorJd jerk_safe = Eigen::MatrixXd::Zero(6, 1);
         stmotion_controller::udp::recv_pack recv_packet;
-        ros::Subscriber jpc_travel_time_sub = nh.subscribe("jpc_travel_time", 1, jpcTravelTimeCallback);
-        ros::Publisher robot_state_pub = nh.advertise<std_msgs::Float32MultiArray>("robot_state", robot->robot_dof() * 3); // pos, vel, acc
-        ros::Subscriber goal_sub = nh.subscribe("robot_goal", robot->robot_dof(), goalCallback);
+        ros::Subscriber jpc_travel_time_sub = nh.subscribe("/" + robot_name + "/jpc_travel_time", 1, jpcTravelTimeCallback);
+        ros::Publisher robot_state_pub = nh.advertise<std_msgs::Float32MultiArray>("/" + robot_name + "/robot_state", robot->robot_dof() * 3); // pos, vel, acc
+        ros::Subscriber goal_sub = nh.subscribe("/" + robot_name + "/robot_goal", robot->robot_dof(), goalCallback);
         ros::Publisher j1_pub = nh.advertise<std_msgs::Float64>(j1_topic, 1);
         ros::Publisher j2_pub = nh.advertise<std_msgs::Float64>(j2_topic, 1);
         ros::Publisher j3_pub = nh.advertise<std_msgs::Float64>(j3_topic, 1);
