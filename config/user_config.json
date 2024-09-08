@@ -1,5 +1,6 @@
 {
     "DH_fname":"/config/robot_properties/Fanuc_DH.txt",
+    "DH_tool_fname":"/config/robot_properties/Fanuc_tool_DH.txt",
     "robot_base_fname":"/config/robot_properties/Fanuc_base.txt",
     "SSA_Enable":0,
     "Use_Robot":0,
@@ -14,5 +15,13 @@
         "J5":"/fanuc_gazebo/joint5_position_controller/command",
         "J6":"/fanuc_gazebo/joint6_position_controller/command"
     },
-    "Nominal_mode":"jpc"
+    "ST_Controller_Topic":
+    {
+        "State":"/stmotion_controller_bringup/robot_state",
+        "Joint_Goal":"/stmotion_controller_bringup/robot_goal",
+        "Cart_Goal":"/stmotion_controller_bringup/robot_cart_goal",
+        "Controller_Time":"/stmotion_controller_bringup/jpc_travel_time",
+        "Tracking_space":0
+    },
+    "Nominal_mode":"pid_dq"
 }

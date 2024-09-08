@@ -12,12 +12,22 @@ class Robot():
         self.robot_goal_pub = rospy.Publisher('/stmotion_controller_bringup/robot_goal', Float32MultiArray, queue_size=6)
         self.robot_state_sub = rospy.Subscriber("/stmotion_controller_bringup/robot_state", Float32MultiArray, self.robot_state_callback)
         self.robot_travel_time_pub = rospy.Publisher('/stmotion_controller_bringup/jpc_travel_time', Float64, queue_size=1)
+        self.robot_human_state_pub = rospy.Publisher('/stmotion_controller_bringup/human_state', Float32MultiArray, queue_size=42)
         self.robot_goal = np.zeros(self.dof)
         self.robot_goal_msg = Float32MultiArray()
+        self.human_state = np.zeros(42)
+        self.human_state_msg = Float32MultiArray()
         self.robot_state = np.zeros(self.dof)
         self.robot_state_v = np.zeros(self.dof)
         self.robot_state_a = np.zeros(self.dof)
         self.robot_travel_time = Float64()
+        self.human_state_dict = []
+        for _ in range(6):
+            human_cap = {}
+            human_cap["r"] = 0.0
+            human_cap["p"] = np.zeros((2,3))
+            human_cap["p"][:,2] = 10.0
+            self.human_state_dict.append(human_cap)
 
     def robot_state_callback(self, data):
         for i in range(self.dof):
@@ -34,6 +44,14 @@ class Robot():
             self.robot_goal[i] = goal[i]
         self.robot_goal_msg.data = goal
         self.robot_goal_pub.publish(self.robot_goal_msg)
+        
+    def pub_human_state(self):
+        data = self.human_state_dict
+        for i in range(6):
+            self.human_state[i*7:(i+1)*7] = np.concatenate(([data[i]["r"]], data[i]["p"][0,:], data[i]["p"][1,:]))
+        print(self.human_state.reshape(6,7))
+        self.human_state_msg.data = self.human_state
+        self.robot_human_state_pub.publish(self.human_state_msg)
 
     def goal_reached(self):
         for i in range(self.dof):
@@ -51,24 +69,34 @@ def main():
                  [0 ,0, 0, 0, 0, 0]]
     
     goal_idx = -1
-    cur_goal = goal_list[0]
+    cur_goal = goal_list[1]
     time.sleep(1)
+    t = 0
     while not rospy.is_shutdown():
-        if(goal_idx == -1 or fanuc.goal_reached()):
-            print("Reached: ", goal_idx)
-            if(goal_idx == -1):
-                fanuc.set_robot_travel_time(0.5)
-            elif(goal_idx == 1):
-                fanuc.set_robot_travel_time(5)
-            elif(goal_idx == 3):
-                fanuc.set_robot_travel_time(2)
+        # if(goal_idx == -1 or fanuc.goal_reached()):
+        #     print("Reached: ", goal_idx)
+        #     if(goal_idx == -1):
+        #         fanuc.set_robot_travel_time(0.5)
+        #     elif(goal_idx == 1):
+        #         fanuc.set_robot_travel_time(5)
+        #     elif(goal_idx == 3):
+        #         fanuc.set_robot_travel_time(2)
             
-            goal_idx += 1
-            if(goal_idx < len(goal_list)):
-                cur_goal = goal_list[goal_idx]   
-            else:
-                break
-            time.sleep(0.01)
+        #     goal_idx += 1
+        #     if(goal_idx < len(goal_list)):
+        #         cur_goal = goal_list[goal_idx]   
+        #     else:
+        #         break
+        #     time.sleep(0.01)
+        t += 1
+        z_pos = 0.3 * (np.sin(t / 10000) - 1)
+        
+        fanuc.human_state_dict[0]["r"] = 0.1
+        fanuc.human_state_dict[0]["p"][:,0] = 0.3
+        fanuc.human_state_dict[0]["p"][:,1] = z_pos
+        fanuc.human_state_dict[0]["p"][:,2] = 0.3
+        # print(fanuc.human_state_dict[0]["p"])
+        fanuc.pub_human_state()
         fanuc.drive_robot(cur_goal)
             
 if __name__ == '__main__':

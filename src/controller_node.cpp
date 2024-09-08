@@ -2,12 +2,24 @@
 #include "Robot.hpp"
 using namespace std::chrono;
 
+std::vector<stmotion_controller::math::Capsule> human_cap(6);
 stmotion_controller::math::VectorJd controller_goal = Eigen::MatrixXd::Zero(6, 1);
 double new_jpc_travel_time = 10.0;
 
 void goalCallback(const std_msgs::Float32MultiArray::ConstPtr& msg)
 {
     controller_goal << msg->data[0], msg->data[1], msg->data[2], msg->data[3], msg->data[4], msg->data[5];
+}
+
+// Get human state from sensor (camera/avp)
+void humanStateCallback(const std_msgs::Float32MultiArray::ConstPtr& msg)
+{
+    for(int i=0; i<6; i++) 
+    {
+        human_cap[i].r = msg->data[i*7];
+        human_cap[i].p.col(0) << msg->data[i*7 + 1], msg->data[i*7 + 2], msg->data[i*7 + 3];
+        human_cap[i].p.col(1) << msg->data[i*7 + 4], msg->data[i*7 + 5], msg->data[i*7 + 6];
+    }
 }
 
 void jpcTravelTimeCallback(const std_msgs::Float64::ConstPtr& msg)
@@ -60,7 +72,6 @@ int main(int argc, char **argv)
         ROS_INFO_STREAM("J5 topic: " << j5_topic);
         ROS_INFO_STREAM("J6 topic: " << j6_topic);
         ROS_INFO_STREAM("Nominal controller mode: " << nominal_mode);
-        
         ros::Rate loop_rate(150);
         unsigned int microsecond = 1000;
 
@@ -76,6 +87,7 @@ int main(int argc, char **argv)
         ros::Subscriber jpc_travel_time_sub = nh.subscribe("jpc_travel_time", 1, jpcTravelTimeCallback);
         ros::Publisher robot_state_pub = nh.advertise<std_msgs::Float32MultiArray>("robot_state", robot->robot_dof() * 3); // pos, vel, acc
         ros::Subscriber goal_sub = nh.subscribe("robot_goal", robot->robot_dof(), goalCallback);
+        ros::Subscriber human_state_sub = nh.subscribe("human_state", 42, humanStateCallback);
         ros::Publisher j1_pub = nh.advertise<std_msgs::Float64>(j1_topic, 1);
         ros::Publisher j2_pub = nh.advertise<std_msgs::Float64>(j2_topic, 1);
         ros::Publisher j3_pub = nh.advertise<std_msgs::Float64>(j3_topic, 1);
@@ -90,6 +102,8 @@ int main(int argc, char **argv)
         std_msgs::Float64 j5_msg;
         std_msgs::Float64 j6_msg; 
         
+        
+        human_cap = robot->human_cap();
         if(use_robot)
         {    
             robot_connection->Setup(robot_ip);
@@ -99,7 +113,7 @@ int main(int argc, char **argv)
         if(nominal_mode.compare("pid") == 0)
         {
             jerk_ref = robot->pid(controller_goal);
-        }  
+        }
         else
         {
             jerk_ref = robot->jpc(controller_goal);
@@ -124,6 +138,8 @@ int main(int argc, char **argv)
             cur_qd = robot->robot_qd();
             cur_qdd = robot->robot_qdd();
             
+            robot->set_human_cap(human_cap);
+            
             for(int j=0; j<robot->robot_dof(); j++)
             {
                 robot_state_msg.data.push_back(cur_q(j));
@@ -136,6 +152,10 @@ int main(int argc, char **argv)
             if(nominal_mode.compare("pid") == 0)
             {
                 jerk_ref = robot->pid(controller_goal);
+            }
+            else if(nominal_mode.compare("pid_dq") == 0)
+            {
+                jerk_ref = robot->pid_dq(controller_goal);
             }
             else
             {

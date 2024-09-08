@@ -69,6 +69,22 @@ target_link_libraries(${PROJECT_NAME}_bringup
     ${catkin_LIBRARIES}
 )
 
+add_executable(${PROJECT_NAME}_teleoperation_bringup
+  src/ros_node/controller_node_teleoperation.cpp
+)
+target_link_libraries(${PROJECT_NAME}_teleoperation_bringup
+    ${PROJECT_NAME}
+    ${catkin_LIBRARIES}
+)
+
+add_executable(${PROJECT_NAME}_cartesian_bringup
+  src/ros_node/controller_node_cartesian.cpp
+)
+target_link_libraries(${PROJECT_NAME}_cartesian_bringup
+    ${PROJECT_NAME}
+    ${catkin_LIBRARIES}
+)
+
 install(PROGRAMS examples/python/controller_usage_example.py DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 install(DIRECTORY launch

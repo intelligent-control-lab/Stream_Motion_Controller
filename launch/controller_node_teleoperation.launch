@@ -1,0 +1,6 @@
+<launch>
+    <node name="stmotion_controller_teleoperation_bringup" pkg="stmotion_controller" type="stmotion_controller_teleoperation_bringup" output="screen" required="true">
+        <param name="config_fname" value="$(find stmotion_controller)/config/user_config.json"/>
+        <param name="root_pwd" value="$(find stmotion_controller)/"/>
+    </node>
+</launch>

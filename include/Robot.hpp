@@ -26,9 +26,12 @@ class Robot
         Eigen::MatrixXd q_;
         Eigen::MatrixXd qd_;
         Eigen::MatrixXd qdd_;
+        math::VectorJd goal_ = Eigen::MatrixXd::Constant(6, 1, 0);;
 
-        Eigen::MatrixXd thetamax_; // njoints_ x 2
-        Eigen::MatrixXd thetadotmax_; // njoints_ x 2
+        Eigen::MatrixXd q_max_; // njoints_ x 2
+        Eigen::MatrixXd qd_max_; // njoints_ x 1
+        Eigen::MatrixXd qdd_max_; // njoints_ x 1
+        Eigen::MatrixXd qddd_max_; // njoints_ x 1
         double pos_epsilon_ = 5;
         double vel_epsilon_ = 0.000001;
         double acc_epsilon_ = 0.000001;
@@ -85,7 +88,7 @@ class Robot
         int ssa_on_ = 0;
 
         int nlink_human_ = 6;
-        stmotion_controller::math::Capsule human_cap_[6];
+        std::vector<stmotion_controller::math::Capsule> human_cap_;
 
         // Capsules size = 1 (base) + n_joint + 1 (ee)
         std::vector<stmotion_controller::math::Capsule> capsules_;
@@ -113,6 +116,7 @@ class Robot
         void set_DH_tool_assemble(const std::string fname);
         void set_DH_tool_disassemble(const std::string fname);
         void set_JPC_speed(const double& t);
+        void set_human_cap(const std::vector<stmotion_controller::math::Capsule> & human_cap);
         
         // getter
         void print_robot_property();
@@ -130,17 +134,18 @@ class Robot
         Eigen::Matrix4d robot_tool_inv() {return tool_inv_;};
         Eigen::Matrix4d robot_tool_assemble_inv() {return tool_assemble_inv_;};
         Eigen::Matrix4d robot_tool_disassemble_inv() {return tool_disassemble_inv_;};
+        std::vector<stmotion_controller::math::Capsule>& human_cap() {return human_cap_;};
 
         // Operations
         void Setup(const std::string& DH_fname, const std::string& base_fname);
         math::VectorJd pid(const math::VectorJd& goal);
+        math::VectorJd pid_dq(const math::VectorJd& goal);
         math::VectorJd jpc(const math::VectorJd& goal);
         math::VectorJd JSSA(const math::VectorJd& jerk_ref);
         math::VectorJd step(const math::VectorJd& jerk, const math::VectorJd& goal);
         bool is_static();
         bool reached_goal(math::VectorJd goal);
         int ssa_status() {return ssa_on_;};
-
 };
 }
 }

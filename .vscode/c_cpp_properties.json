@@ -1,0 +1,32 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/yifan/catkin_ws/devel/include/**",
+        "/opt/ros/noetic/include/**",
+        "/home/yifan/catkin_ws/src/atr_pkg/include/**",
+        "/home/yifan/catkin_ws/src/niryo_one_ros/dynamixel_sdk/include/**",
+        "/home/yifan/catkin_ws/src/iiwa_ros/iiwa_control/include/**",
+        "/home/yifan/catkin_ws/src/iiwa_ros/iiwa_gazebo/include/**",
+        "/home/yifan/catkin_ws/src/iiwa_ros/iiwa_tools/include/**",
+        "/home/yifan/catkin_ws/src/Robotic_LEGO_Assembly_and_Disassembly_from_Human_Demonstration/include/**",
+        "/home/yifan/catkin_ws/src/niryo_one_ros/mcp_can_rpi/include/**",
+        "/home/yifan/catkin_ws/src/niryo_one_ros/niryo_one_debug/include/**",
+        "/home/yifan/catkin_ws/src/niryo_one_ros/niryo_one_driver/include/**",
+        "/home/yifan/catkin_ws/src/ssr_pkg/include/**",
+        "/home/yifan/catkin_ws/src/Stream_Motion_Controller/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

@@ -56,18 +56,38 @@ void Robot::set_DH_tool_disassemble(const std::string fname)
     tool_disassemble_inv_ = math::PInv(tool_disassemble_inv_);
 
 }
+
+void Robot::set_human_cap(const std::vector<stmotion_controller::math::Capsule>& human_cap)
+{
+    for(int i=0; i<6; i++) 
+    {
+        human_cap_[i] = human_cap[i];
+    }
+}
         
 void Robot::Setup(const std::string& DH_fname, const std::string& base_fname)
 {
-    thetamax_.resize(njoints_, 2);
-    thetadotmax_.resize(njoints_, 1);
+    q_max_.resize(njoints_, 2);
+    qd_max_.resize(njoints_, 1);
+    qdd_max_.resize(njoints_, 1);
+    qddd_max_.resize(njoints_, 1);
     q_.resize(njoints_, 1);
     qd_.resize(njoints_, 1);
     qdd_.resize(njoints_, 1);
+    human_cap_.resize(6);
+
+    q_max_ << 170.0, -170.0,
+            170.0, -170.0,
+            170.0, -170.0,
+            170.0, -170.0,
+            170.0, -170.0,
+            170.0, -170.0;
+    qd_max_ << 370.0, 310.0, 410.0, 550.0, 545.0, 1000;
+    qdd_max_ << 770.0, 645.0, 1025.0, 2022.0, 2128.0, 1785.0;
+    qddd_max_ << 3211.0, 2690.0, 5125.0, 14868.0, 16632.0, 6377.0;
+    
     for(int i=0; i<njoints_; i++)
     {
-        thetadotmax_.row(i) << 35 * PI / 180;
-        thetamax_.row(i) << 170 * PI / 180, -170 * PI / 180;
         q_.row(i) << 0.0;
         qd_.row(i) << 0.0;
         qdd_.row(i) << 0.0;
@@ -503,12 +523,21 @@ math::VectorJd Robot::jpc(const math::VectorJd& goal)
     Eigen::MatrixXd tmp(3, 1);
     for(int idx=0; idx<njoints_; idx++)
     {
-        if((goal(idx) != q_(idx) && pid_threshold_step_(idx) < 0) || pid_threshold_step_(idx) >= 0)
+        if((abs(goal(idx) - q_(idx)) > 1 && pid_threshold_step_(idx) < 0) || abs(goal_(idx) - goal(idx)) > 5 || pid_threshold_step_(idx) >= 0)
         {   
-            if(pid_threshold_step_(idx) < 0)
+            if((pid_threshold_step_(idx) < 0)  || abs(goal_(idx) - goal(idx)) > 5)
             {
+                if(idx == 0)
+                {
+                    ROS_INFO_STREAM("Replan");
+                    ROS_INFO_STREAM(q_.transpose());
+                    ROS_INFO_STREAM(goal.transpose());
+                    ROS_INFO_STREAM(goal_.transpose());
+                }
+                
                 X << q_(idx), qd_(idx), qdd_(idx);
                 G << goal(idx), 0, 0;
+                goal_ = goal;
                 tmp = G - pid_A_ * X;
                 pid_thresholding_ubuffer_.row(idx) = (pid_Binv_ * tmp).transpose();
                 pid_threshold_step_(idx) = 0;
@@ -610,18 +639,107 @@ math::VectorJd Robot::pid(const math::VectorJd& goal)
     return jerk;
 }
 
+math::VectorJd Robot::pid_dq(const math::VectorJd& goal)
+{
+    Eigen::MatrixXd cart_T_cur = math::FK(q_, DH_, base_frame_, false);
+    Eigen::MatrixXd cart_T_goal = math::FK(goal, DH_, base_frame_, false);
+    math::VectorJd vel = Eigen::MatrixXd::Zero(6, 1);
+    math::VectorJd acc = Eigen::MatrixXd::Zero(6, 1);
+    math::VectorJd jerk = Eigen::MatrixXd::Zero(6, 1);
+
+    // calcualte the cartesian difference d_x
+    Eigen::Matrix3d rot_cur = cart_T_cur.block(0, 0, 3, 3);
+    Eigen::MatrixXd pos_cur = cart_T_cur.block(0, 3, 3, 1);
+    Eigen::Quaterniond quat_cur(rot_cur);
+    
+    Eigen::Matrix3d rot_goal = cart_T_goal.block(0, 0, 3, 3);
+    Eigen::MatrixXd pos_goal = cart_T_goal.block(0, 3, 3, 1);
+    Eigen::Quaterniond quat_goal(rot_goal);
+
+    math::Vector6d d_x = math::get_6d_error(pos_cur, quat_cur, pos_goal, quat_goal);
+    
+    // calculate the jacobian of the current q
+    Eigen::MatrixXd J, J_inv, qd_cmd;
+    J = math::Jacobian_full(q_, DH_, base_frame_, 0);
+    J_inv = math::PInv(J);
+    qd_cmd = J_inv * d_x;
+    // apply PID control to track the target d_th and get the desired jerk
+
+    double p_pos = 1;
+    double i_pos = 0;
+    double d_pos = 0;
+    double p_vel = 1;
+    double i_vel = 0;
+    double d_vel = 0;
+    double p_acc = 1;
+    double i_acc = 0;
+    double d_acc = 0;
+    double err_pos = 0;
+    double err_vel = 0;
+    double err_acc = 0;
+    double vel_ref = 0;
+    double acc_ref = 0;
+    double max_vel_rate = 0;
+    double max_jerk_rate = 0;
+    double max_acc_rate = 0;
+    for(int idx=0; idx<njoints_; idx++)
+    {
+        vel(idx) =  qd_cmd(idx);
+        max_vel_rate = std::max(max_vel_rate, std::abs(vel(idx) / qd_max_(idx)));
+    }
+    if(max_vel_rate > 1.0)
+    {
+        vel = vel / max_vel_rate;
+    }
+
+    for(int idx=0; idx<njoints_; idx++)
+    {
+        err_vel = vel(idx) - qd_(idx);
+        acc(idx) = err_vel / delta_t_;
+        max_acc_rate = std::max(max_acc_rate, std::abs(acc(idx) / qdd_max_(idx)));
+    }
+    if(max_acc_rate > 1.0)
+    {
+        acc = acc / max_acc_rate;
+    }
+    
+    for(int idx=0; idx<njoints_; idx++)
+    {
+        err_acc = acc(idx) - qdd_(idx);
+        jerk(idx) = err_acc / delta_t_;
+        max_jerk_rate = std::max(max_jerk_rate, std::abs(jerk(idx) / qddd_max_(idx)));
+    }
+    if(max_jerk_rate > 1.0)
+    {
+        jerk = jerk / max_jerk_rate;
+    }
+    
+    ROS_INFO_STREAM("!!!!!!!!!!!!!!!");
+    ROS_INFO_STREAM(jerk);
+    return jerk;
+
+}
+
 
 math::VectorJd Robot::step(const math::VectorJd& jerk, const math::VectorJd& goal)
 {
     Eigen::MatrixXd X(3, 1);
     math::VectorJd pos_out = jerk;
+    math::VectorJd jerk_clipped = jerk;
     Eigen::MatrixXd unew(3, 1);
     for(int i=0; i<6; i++)
     {
         if(pid_threshold_step_(i) == pid_thresholding_len_ - 1)
         {
-            pos_out(i) = goal(i);
-            q_(i) = goal(i);
+            pos_out(i) = pos_out(i) * 0;
+            qd_(i) = 0;
+            qdd_(i) = 0;
+            pid_threshold_step_(i) = -1;
+        }
+        if(0)//pid_threshold_step_(i) == pid_thresholding_len_)
+        {
+            // pos_out(i) = goal_(i);
+            q_(i) = q_(i);
             qd_(i) = 0;
             qdd_(i) = 0;
             pid_threshold_step_(i) = -1;
@@ -629,9 +747,14 @@ math::VectorJd Robot::step(const math::VectorJd& jerk, const math::VectorJd& goa
         else
         {
             X << q_(i), qd_(i), qdd_(i);
-            unew = Adt_ * X + Bdt_ * jerk(i);
+            jerk_clipped(i) = std::min(std::max(jerk(i), -qddd_max_(i)), qddd_max_(i));
+            unew = Adt_ * X + Bdt_ * jerk_clipped(i);
+            unew(0) = std::min(std::max(unew(0), q_max_(i, 1)), q_max_(i, 0));
+            unew(1) = std::min(std::max(unew(1), -qd_max_(i)), qd_max_(i));
+            unew(2) = std::min(std::max(unew(2), -qdd_max_(i)), qdd_max_(i));
+
             pos_out(i) = unew(0);
-            q_(i) = pos_out(i);
+            q_(i) = unew(0);
             qd_(i) = unew(1);
             qdd_(i) = unew(2);
         }
