@@ -74,6 +74,8 @@ void Robot::Setup(const std::string& DH_fname, const std::string& base_fname)
     q_.resize(njoints_, 1);
     qd_.resize(njoints_, 1);
     qdd_.resize(njoints_, 1);
+    target_vel.resize(njoints_, 1);
+    last_target_goal.resize(njoints_, 1);
     human_cap_.resize(6);
 
     q_max_ << 170.0, -170.0,
@@ -91,6 +93,8 @@ void Robot::Setup(const std::string& DH_fname, const std::string& base_fname)
         q_.row(i) << 0.0;
         qd_.row(i) << 0.0;
         qdd_.row(i) << 0.0;
+        target_vel.row(i) << 0.0;
+        last_target_goal.row(i) << 0.0;
     }
     std::cout << "Load DH from: " << DH_fname << std::endl;
     DH_ = stmotion_controller::io::LoadMatFromFile(DH_fname);
@@ -643,6 +647,8 @@ math::VectorJd Robot::pid_dq(const math::VectorJd& goal)
 {
     Eigen::MatrixXd cart_T_cur = math::FK(q_, DH_, base_frame_, false);
     Eigen::MatrixXd cart_T_goal = math::FK(goal, DH_, base_frame_, false);
+    Eigen::MatrixXd cart_T_goal_last = math::FK(last_target_goal, DH_, base_frame_, false);
+    last_target_goal = goal;
     math::VectorJd vel = Eigen::MatrixXd::Zero(6, 1);
     math::VectorJd acc = Eigen::MatrixXd::Zero(6, 1);
     math::VectorJd jerk = Eigen::MatrixXd::Zero(6, 1);
@@ -656,63 +662,100 @@ math::VectorJd Robot::pid_dq(const math::VectorJd& goal)
     Eigen::MatrixXd pos_goal = cart_T_goal.block(0, 3, 3, 1);
     Eigen::Quaterniond quat_goal(rot_goal);
 
+    Eigen::Matrix3d rot_goal_last = cart_T_goal_last.block(0, 0, 3, 3);
+    Eigen::MatrixXd pos_goal_last = cart_T_goal_last.block(0, 3, 3, 1);
+    Eigen::Quaterniond quat_goal_last(rot_goal_last);
+
     math::Vector6d d_x = math::get_6d_error(pos_cur, quat_cur, pos_goal, quat_goal);
+    math::Vector6d d_x_last = math::get_6d_error(pos_goal_last, quat_goal_last, pos_goal, quat_goal);
     
+    double alpha_target_vel = 0.7;
+    target_vel = alpha_target_vel * d_x_last + (1 - alpha_target_vel) * target_vel;
+
     // calculate the jacobian of the current q
     Eigen::MatrixXd J, J_inv, qd_cmd;
     J = math::Jacobian_full(q_, DH_, base_frame_, 0);
     J_inv = math::PInv(J);
-    qd_cmd = J_inv * d_x;
+    qd_cmd = J_inv * (target_vel + 2 * d_x);
     // apply PID control to track the target d_th and get the desired jerk
 
-    double p_pos = 1;
+    double p_pos = 3;
     double i_pos = 0;
-    double d_pos = 0;
-    double p_vel = 1;
+    double d_pos = 0.99;
+    double p_vel = 2.1;
     double i_vel = 0;
-    double d_vel = 0;
-    double p_acc = 1;
+    double d_vel = 0.1;
+    double p_acc = 10;
     double i_acc = 0;
-    double d_acc = 0;
+    double d_acc = 0.5;
     double err_pos = 0;
     double err_vel = 0;
     double err_acc = 0;
     double vel_ref = 0;
     double acc_ref = 0;
-    double max_vel_rate = 0;
-    double max_jerk_rate = 0;
-    double max_acc_rate = 0;
+    
     for(int idx=0; idx<njoints_; idx++)
     {
-        vel(idx) =  qd_cmd(idx);
-        max_vel_rate = std::max(max_vel_rate, std::abs(vel(idx) / qd_max_(idx)));
+        if(abs(goal(idx) - q_(idx)) < pos_epsilon_)
+        {
+            resetPID(idx);
+        }
     }
-    if(max_vel_rate > 1.0)
+
+
+    for(int idx=0; idx<njoints_; idx++)
     {
-        vel = vel / max_vel_rate;
+        vel(idx) =  40*qd_cmd(idx);
+        // max_vel_rate = std::max(max_vel_rate, std::abs(vel(idx) / qd_max_(idx)));
     }
+    // if(max_vel_rate > 1.0)
+    // {
+    //     vel = vel / max_vel_rate;
+    // }
 
     for(int idx=0; idx<njoints_; idx++)
     {
         err_vel = vel(idx) - qd_(idx);
-        acc(idx) = err_vel / delta_t_;
-        max_acc_rate = std::max(max_acc_rate, std::abs(acc(idx) / qdd_max_(idx)));
+
+        // acc(idx) = err_vel / delta_t_;
+
+        vel_err_sum_(idx) += err_vel;
+        if(last_vel_err_(idx) == 0)
+        {
+            last_vel_err_(idx) = err_vel;
+        }
+        acc(idx) = p_vel * err_vel + i_vel * vel_err_sum_(idx) * delta_t_ + d_vel * (err_vel - last_vel_err_(idx)) / delta_t_;
+        last_vel_err_(idx) = err_vel;
+        
+        // max_acc_rate = std::max(max_acc_rate, std::abs(acc(idx) / qdd_max_(idx)));
     }
-    if(max_acc_rate > 1.0)
-    {
-        acc = acc / max_acc_rate;
-    }
+
+    // if(max_acc_rate > 1.0)
+    // {
+    //     acc = acc / max_acc_rate;
+    // }
     
     for(int idx=0; idx<njoints_; idx++)
     {
         err_acc = acc(idx) - qdd_(idx);
-        jerk(idx) = err_acc / delta_t_;
-        max_jerk_rate = std::max(max_jerk_rate, std::abs(jerk(idx) / qddd_max_(idx)));
+        
+        // jerk(idx) = err_acc / delta_t_;
+
+        acc_err_sum_(idx) += err_acc;
+        if(last_acc_err_(idx) == 0)
+        {
+            last_acc_err_(idx) = err_acc;
+        }
+        jerk(idx) = p_acc * err_acc + i_acc * acc_err_sum_(idx) * delta_t_ + d_acc * (err_acc - last_acc_err_(idx)) / delta_t_;
+        last_acc_err_(idx) = err_acc;
+
+        // max_jerk_rate = std::max(max_jerk_rate, std::abs(jerk(idx) / qddd_max_(idx)));
+        jerk(idx) = std::min(std::max(jerk(idx), -qddd_max_(idx)), qddd_max_(idx));
     }
-    if(max_jerk_rate > 1.0)
-    {
-        jerk = jerk / max_jerk_rate;
-    }
+    // if(max_jerk_rate > 1.0)
+    // {
+    //     jerk = jerk / max_jerk_rate;
+    // }
     
     ROS_INFO_STREAM("!!!!!!!!!!!!!!!");
     ROS_INFO_STREAM(jerk);

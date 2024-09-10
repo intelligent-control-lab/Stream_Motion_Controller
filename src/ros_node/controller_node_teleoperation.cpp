@@ -3,6 +3,9 @@
 using namespace std::chrono;
 
 Eigen::MatrixXd cart_T_teleop = -1 * Eigen::MatrixXd::Identity(4, 4);
+stmotion_controller::math::VectorJd robot_q = Eigen::MatrixXd::Zero(6, 1);
+stmotion_controller::math::VectorJd robot_qd = Eigen::MatrixXd::Zero(6, 1);
+stmotion_controller::math::VectorJd robot_qdd = Eigen::MatrixXd::Zero(6, 1);
 
 void teleopCallback(const std_msgs::Float32MultiArray::ConstPtr& msg)
 {
@@ -10,6 +13,14 @@ void teleopCallback(const std_msgs::Float32MultiArray::ConstPtr& msg)
             msg->data[4], msg->data[5], msg->data[6], msg->data[7],
             msg->data[8], msg->data[9], msg->data[10], msg->data[11],
             msg->data[12], msg->data[13], msg->data[14], msg->data[15];
+}
+
+// Get robot state from stmotion controller.
+void robotStateCallback(const std_msgs::Float32MultiArray::ConstPtr& msg)
+{
+    robot_q << msg->data[0], msg->data[3], msg->data[6], msg->data[9], msg->data[12], msg->data[15];
+    robot_qd << msg->data[1], msg->data[4], msg->data[7], msg->data[10], msg->data[13], msg->data[16];
+    robot_qdd << msg->data[2], msg->data[5], msg->data[8], msg->data[11], msg->data[14], msg->data[17];
 }
 
 int main(int argc, char **argv)
@@ -20,14 +31,15 @@ int main(int argc, char **argv)
         ros::init(argc, argv, "stmotion_controller_node_teleoperation");
         ros::NodeHandle nh("~");
         ROS_INFO_STREAM("namespace of nh = " << nh.getNamespace());
-        std::string config_fname, root_pwd, DH_fname, DH_tool_fname, robot_base_fname, robot_ip, nominal_mode
-                    , controller_joint_goal_topic, controller_time_topic;
+        std::string config_fname, root_pwd, robot_state_topic, DH_fname, DH_tool_fname, robot_base_fname, robot_ip, 
+                    nominal_mode , controller_joint_goal_topic, controller_time_topic;
         nh.getParam("config_fname", config_fname);
         nh.getParam("root_pwd", root_pwd);
 
         std::ifstream config_file(config_fname, std::ifstream::binary);
         Json::Value config;
         config_file >> config;
+        robot_state_topic = config["ST_Controller_Topic"]["State"].asString();
         DH_fname = root_pwd + config["DH_fname"].asString();
         robot_base_fname = root_pwd + config["robot_base_fname"].asString();
         DH_tool_fname = root_pwd + config["DH_tool_fname"].asString();
@@ -48,6 +60,7 @@ int main(int argc, char **argv)
         robot->set_DH_tool(DH_tool_fname);
         robot->print_robot_property();
         ros::Subscriber teleop_sub = nh.subscribe("/stmotion_controller_bringup/robot_teleop", 16, teleopCallback);
+        ros::Subscriber robot_state_sub = nh.subscribe(robot_state_topic, robot->robot_dof() * 3, robotStateCallback);
         ros::Publisher goal_pub = nh.advertise<std_msgs::Float32MultiArray>(controller_joint_goal_topic, robot->robot_dof());
         ros::Publisher controller_time_pub = nh.advertise<std_msgs::Float64>(controller_time_topic, 1);
 
@@ -71,7 +84,7 @@ int main(int argc, char **argv)
                 // cart_T_current(0, 3) = std::min(std::max(cart_T_current(0, 3), 0.4), 0.8);
                 // cart_T_current(1, 3) = std::min(std::max(cart_T_current(1, 3), -0.3), 0.3);
                 // cart_T_current(2, 3) = std::min(std::max(cart_T_current(2, 3), 0.3), 0.7);
-            }
+            } 
             
             stmotion_controller::math::VectorJd cur_goal_teleop =  stmotion_controller::math::IK_closed_form(cur_goal, cart_T_current, robot->robot_DH(), 
                                                                         robot->robot_base_inv(), robot->robot_ee_inv(), 0, IK_status);
@@ -83,8 +96,14 @@ int main(int argc, char **argv)
             //                                                                                      robot->robot_DH(), 
             //                                                                                      robot->robot_base(), 0, 10000, 0.001);
 
+            if(cart_T_teleop(3,3) == -2.0) 
+            {
+                cur_goal_teleop = robot_q;
+            }
+
             bool invalid = false;
-            for(int j=0; j<robot->robot_dof(); j++) {
+            for(int j=0; j<robot->robot_dof(); j++) 
+            {
                 if(std::isnan(cur_goal_teleop(j))) 
                 {
                     invalid = true;

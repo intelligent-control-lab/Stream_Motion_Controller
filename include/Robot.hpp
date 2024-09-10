@@ -85,6 +85,10 @@ class Robot
         Eigen::MatrixXd pid_A_;
         Eigen::MatrixXd pid_B_;
         Eigen::MatrixXd pid_Binv_;
+
+        math::Vector6d target_vel;
+        math::VectorJd last_target_goal;
+
         int ssa_on_ = 0;
 
         int nlink_human_ = 6;
