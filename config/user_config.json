@@ -23,5 +23,5 @@
         "Controller_Time":"/stmotion_controller_bringup/jpc_travel_time",
         "Tracking_space":0
     },
-    "Nominal_mode":"pid_dq"
+    "Nominal_mode":"pid_vel"
 }

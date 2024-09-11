@@ -78,12 +78,12 @@ void Robot::Setup(const std::string& DH_fname, const std::string& base_fname)
     last_target_goal.resize(njoints_, 1);
     human_cap_.resize(6);
 
-    q_max_ << 170.0, -170.0,
-            170.0, -170.0,
-            170.0, -170.0,
-            170.0, -170.0,
-            170.0, -170.0,
-            170.0, -170.0;
+    q_max_ << -90.0, 90.0,
+            -80.0, 80.0,
+            -80.0, 80.0,
+            -90.0, 90.0,
+            -90.0, 90.0,
+            -90.0, 90.0;
     qd_max_ << 370.0, 310.0, 410.0, 550.0, 545.0, 1000;
     qdd_max_ << 770.0, 645.0, 1025.0, 2022.0, 2128.0, 1785.0;
     qddd_max_ << 3211.0, 2690.0, 5125.0, 14868.0, 16632.0, 6377.0;
@@ -764,6 +764,94 @@ math::VectorJd Robot::pid_dq(const math::VectorJd& goal)
 }
 
 
+math::VectorJd Robot::pid_vel(const math::VectorJd& goal_vel)
+{
+    // calculate the jacobian of the current q
+    Eigen::MatrixXd J, J_inv, goal_vel_q, q_goal;
+    J = math::Jacobian_full(q_, DH_, base_frame_, 0);
+    J_inv = math::PInv(J);
+    
+    goal_vel_q = J_inv * (goal_vel);
+    // ROS_INFO_STREAM(goal_vel_q);
+    for(int i=0; i<njoints_; i++)
+    {
+        goal_vel_q(i) = goal_vel_q(i) * 180 / PI;
+    }
+    // ROS_INFO_STREAM(goal_vel);
+    // ROS_INFO_STREAM(goal_vel_q);
+
+    // ROS_INFO_STREAM(q_);
+    q_goal = q_ + (qd_ + goal_vel_q) * delta_t_;
+    // goal_ = q_goal;
+
+    for(int i=0; i<njoints_; i++)
+    {
+        q_goal(i) = std::min(std::max(q_goal(i), q_max_(i, 0)), q_max_(i, 1));
+    }
+    // ROS_INFO_STREAM(q_goal);
+    
+    double p_pos = 10;
+    double i_pos = 0;
+    double d_pos = 0.99;
+    double p_vel = 100;
+    double i_vel = 0;
+    double d_vel = 1;
+    double p_acc = 100;
+    double i_acc = 0;
+    double d_acc = 0.5;
+    double err_pos = 0;
+    double err_vel = 0;
+    double err_acc = 0;
+    double vel_ref = 0;
+    double acc_ref = 0;
+    math::VectorJd jerk = Eigen::MatrixXd::Zero(6, 1);
+
+    for(int idx=0; idx<njoints_; idx++)
+    {
+        err_pos = q_goal(idx) - q_(idx);
+        pos_err_sum_(idx) += err_pos;
+        if(last_pos_err_(idx) == 0)
+        {
+            last_pos_err_(idx) = err_pos;
+        }
+        vel_ref = p_pos * err_pos + i_pos * pos_err_sum_(idx) * delta_t_ + d_pos * (err_pos - last_pos_err_(idx)) / delta_t_;
+        last_pos_err_(idx) = err_pos;
+
+        err_vel = vel_ref - qd_(idx);
+        vel_err_sum_(idx) += err_vel;
+        if(last_vel_err_(idx) == 0)
+        {
+            last_vel_err_(idx) = err_vel;
+        }
+        acc_ref = p_vel * err_vel + i_vel * vel_err_sum_(idx) * delta_t_ + d_vel * (err_vel - last_vel_err_(idx)) / delta_t_;
+        last_vel_err_(idx) = err_vel;
+
+        err_acc = acc_ref - qdd_(idx);
+        acc_err_sum_(idx) += err_acc;
+        if(last_acc_err_(idx) == 0)
+        {
+            last_acc_err_(idx) = err_acc;
+        }
+        jerk(idx) = p_acc * err_acc + i_acc * acc_err_sum_(idx) * delta_t_ + d_acc * (err_acc - last_acc_err_(idx)) / delta_t_;
+        last_acc_err_(idx) = err_acc;
+
+        // if(idx == 1)
+        // {
+        //     ROS_INFO_STREAM(err_pos);
+        //     ROS_INFO_STREAM(err_vel);
+        //     ROS_INFO_STREAM(err_acc);
+        //     ROS_INFO_STREAM(jerk(idx));
+        // }
+        
+        jerk(idx) = std::min(std::max(jerk(idx), -qddd_max_(idx)), qddd_max_(idx));
+    }
+    // ROS_INFO_STREAM(jerk);
+    // ROS_INFO_STREAM("\n");
+    return jerk;
+
+}
+
+
 math::VectorJd Robot::step(const math::VectorJd& jerk, const math::VectorJd& goal)
 {
     Eigen::MatrixXd X(3, 1);
@@ -792,9 +880,9 @@ math::VectorJd Robot::step(const math::VectorJd& jerk, const math::VectorJd& goa
             X << q_(i), qd_(i), qdd_(i);
             jerk_clipped(i) = std::min(std::max(jerk(i), -qddd_max_(i)), qddd_max_(i));
             unew = Adt_ * X + Bdt_ * jerk_clipped(i);
-            unew(0) = std::min(std::max(unew(0), q_max_(i, 1)), q_max_(i, 0));
-            unew(1) = std::min(std::max(unew(1), -qd_max_(i)), qd_max_(i));
-            unew(2) = std::min(std::max(unew(2), -qdd_max_(i)), qdd_max_(i));
+            // unew(0) = std::min(std::max(unew(0), q_max_(i, 0)), q_max_(i, 1));
+            // unew(1) = std::min(std::max(unew(1), -qd_max_(i)), qd_max_(i));
+            // unew(2) = std::min(std::max(unew(2), -qdd_max_(i)), qdd_max_(i));
 
             pos_out(i) = unew(0);
             q_(i) = unew(0);

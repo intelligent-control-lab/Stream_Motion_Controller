@@ -144,6 +144,7 @@ class Robot
         void Setup(const std::string& DH_fname, const std::string& base_fname);
         math::VectorJd pid(const math::VectorJd& goal);
         math::VectorJd pid_dq(const math::VectorJd& goal);
+        math::VectorJd pid_vel(const math::VectorJd& goal_vel);
         math::VectorJd jpc(const math::VectorJd& goal);
         math::VectorJd JSSA(const math::VectorJd& jerk_ref);
         math::VectorJd step(const math::VectorJd& jerk, const math::VectorJd& goal);
