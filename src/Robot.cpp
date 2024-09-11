@@ -669,20 +669,20 @@ math::VectorJd Robot::pid_dq(const math::VectorJd& goal)
     math::Vector6d d_x = math::get_6d_error(pos_cur, quat_cur, pos_goal, quat_goal);
     math::Vector6d d_x_last = math::get_6d_error(pos_goal_last, quat_goal_last, pos_goal, quat_goal);
     
-    double alpha_target_vel = 0.7;
+    double alpha_target_vel = 0.4;
     target_vel = alpha_target_vel * d_x_last + (1 - alpha_target_vel) * target_vel;
 
     // calculate the jacobian of the current q
     Eigen::MatrixXd J, J_inv, qd_cmd;
     J = math::Jacobian_full(q_, DH_, base_frame_, 0);
     J_inv = math::PInv(J);
-    qd_cmd = J_inv * (target_vel + 2 * d_x);
+    qd_cmd = J_inv * (target_vel + d_x);
     // apply PID control to track the target d_th and get the desired jerk
 
     double p_pos = 3;
     double i_pos = 0;
     double d_pos = 0.99;
-    double p_vel = 2.1;
+    double p_vel = 10;
     double i_vel = 0;
     double d_vel = 0.1;
     double p_acc = 10;
@@ -748,6 +748,12 @@ math::VectorJd Robot::pid_dq(const math::VectorJd& goal)
         }
         jerk(idx) = p_acc * err_acc + i_acc * acc_err_sum_(idx) * delta_t_ + d_acc * (err_acc - last_acc_err_(idx)) / delta_t_;
         last_acc_err_(idx) = err_acc;
+
+
+
+
+        // Try to use DARE solver solution
+        // jerk(idx) = 0.9944 * (vel(idx) - qd_(idx)) + 1.4102 * (-1 * qdd_(idx));
 
         // max_jerk_rate = std::max(max_jerk_rate, std::abs(jerk(idx) / qddd_max_(idx)));
         jerk(idx) = std::min(std::max(jerk(idx), -qddd_max_(idx)), qddd_max_(idx));
