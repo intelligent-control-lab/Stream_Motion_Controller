@@ -157,6 +157,10 @@ int main(int argc, char **argv)
             {
                 jerk_ref = robot->pid_dq(controller_goal);
             }
+            else if(nominal_mode.compare("pid_vel") == 0)
+            {
+                jerk_ref = robot->pid_vel(controller_goal);
+            }
             else
             {
                 jerk_ref = robot->jpc(controller_goal);
