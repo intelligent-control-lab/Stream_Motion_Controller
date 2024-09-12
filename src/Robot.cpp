@@ -78,12 +78,18 @@ void Robot::Setup(const std::string& DH_fname, const std::string& base_fname)
     last_target_goal.resize(njoints_, 1);
     human_cap_.resize(6);
 
+    // q_max_ << -90.0, 90.0,
+    //         -80.0, 80.0,
+    //         -80.0, 80.0,
+    //         -80.0, 80.0,
+    //         -90.0, 90.0,
+    //         -170.0, 170.0;
     q_max_ << -90.0, 90.0,
             -80.0, 80.0,
             -80.0, 80.0,
+            -170.0, 170.0,
             -90.0, 90.0,
-            -90.0, 90.0,
-            -90.0, 90.0;
+            -270.0, 270.0;
     qd_max_ << 370.0, 310.0, 410.0, 550.0, 545.0, 1000;
     qdd_max_ << 770.0, 645.0, 1025.0, 2022.0, 2128.0, 1785.0;
     qddd_max_ << 3211.0, 2690.0, 5125.0, 14868.0, 16632.0, 6377.0;
@@ -764,24 +770,108 @@ math::VectorJd Robot::pid_dq(const math::VectorJd& goal)
 }
 
 
-math::VectorJd Robot::pid_vel(const math::VectorJd& goal_vel)
+math::VectorJd Robot::pid_vel(math::VectorJd& goal)
 {
-    // calculate the jacobian of the current q
-    Eigen::MatrixXd J, J_inv, goal_vel_q, q_goal;
-    J = math::Jacobian_full(q_, DH_, base_frame_, 0);
-    J_inv = math::PInv(J);
-    
-    goal_vel_q = J_inv * (goal_vel);
-    // ROS_INFO_STREAM(goal_vel_q);
     for(int i=0; i<njoints_; i++)
     {
-        goal_vel_q(i) = goal_vel_q(i) * 180 / PI;
+        goal(i) = std::min(std::max(goal(i), q_max_(i, 0)), q_max_(i, 1));
     }
+    // if(abs(goal(4)) < 10)
+    // {
+    //     goal(5) = goal(5) + goal(3) - q_(3);
+    //     goal(3) = q_(3);
+    //     // sleep(2);
+    //     ROS_INFO_STREAM("Less 10");
+    //     ROS_INFO_STREAM(goal);
+    //     // exit(0);
+    // }
+
+    Eigen::MatrixXd cart_T_cur = math::FK(q_, DH_, base_frame_, false);
+    Eigen::MatrixXd cart_T_goal = math::FK(goal, DH_, base_frame_, false);
+    Eigen::MatrixXd cart_T_goal_last = math::FK(last_target_goal, DH_, base_frame_, false);
+    last_target_goal = goal;
+    math::VectorJd vel = Eigen::MatrixXd::Zero(6, 1);
+    math::VectorJd acc = Eigen::MatrixXd::Zero(6, 1);
+    math::VectorJd jerk = Eigen::MatrixXd::Zero(6, 1);
+
+    // calcualte the cartesian difference d_x
+    Eigen::Matrix3d rot_cur = cart_T_cur.block(0, 0, 3, 3);
+    Eigen::MatrixXd pos_cur = cart_T_cur.block(0, 3, 3, 1);
+    Eigen::Quaterniond quat_cur(rot_cur);
+    
+    Eigen::Matrix3d rot_goal = cart_T_goal.block(0, 0, 3, 3);
+    Eigen::MatrixXd pos_goal = cart_T_goal.block(0, 3, 3, 1);
+    Eigen::Quaterniond quat_goal(rot_goal);
+
+    Eigen::Matrix3d rot_goal_last = cart_T_goal_last.block(0, 0, 3, 3);
+    Eigen::MatrixXd pos_goal_last = cart_T_goal_last.block(0, 3, 3, 1);
+    Eigen::Quaterniond quat_goal_last(rot_goal_last);
+
+    math::Vector6d d_x = math::get_6d_error(pos_cur, quat_cur, pos_goal, quat_goal);
+    math::Vector6d d_x_last = math::get_6d_error(pos_goal_last, quat_goal_last, pos_goal, quat_goal);
+    
+    double alpha_target_vel = 0.7;
+    target_vel = alpha_target_vel * d_x_last + (1 - alpha_target_vel) * target_vel;
+
+    // calculate the jacobian of the current q
+    double ori_vel_scale = 2.0;
+    d_x(3) = d_x(3) * ori_vel_scale;
+    d_x(4) = d_x(4) * ori_vel_scale;
+    d_x(5) = d_x(5) * ori_vel_scale;
+
+    Eigen::MatrixXd J, J_inv, qd_cmd;
+    Eigen::MatrixXd goal_vel_q, q_goal;
+    J = math::Jacobian_full(q_, DH_, base_frame_, 0);
+    J_inv = math::PInv(J);
+
+    d_x = d_x / 1.0;
+    
+    // ROS_INFO_STREAM(d_x);//target_vel + 2 * d_x);
+    double determinant = J.determinant();
+    ROS_INFO_STREAM(determinant);
+    if(abs(determinant) < 0.07)
+    {
+        // if(abs(goal(4)) < 10)
+        // {
+        //     goal(5) = goal(5) + goal(3) - q_(3);
+        //     goal(3) = q_(3);
+        //     // sleep(2);
+        //     // ROS_INFO_STREAM("Less 10");
+        //     // ROS_INFO_STREAM(goal);
+        //     // exit(0);
+        // }
+        qd_cmd = (goal - q_);
+    }
+    else
+    {
+        qd_cmd = J_inv * d_x;//(target_vel + 2 * d_x);
+        for(int i=0; i<njoints_; i++)
+        {
+            qd_cmd(i) = qd_cmd(i) * 180 / PI;
+        }
+    }
+    // if(lu_decomp.rank() < 6)
+    // {
+    //     ROS_INFO_STREAM("Jacob");
+    //     ROS_INFO_STREAM(J);
+    //     ROS_INFO_STREAM(goal);
+    //     ROS_INFO_STREAM("Vel:");
+    //     ROS_INFO_STREAM(goal_vel_q);
+    // }
+    
+    goal_vel_q = qd_cmd;//J_inv * (goal_vel);
+    // ROS_INFO_STREAM(goal_vel_q);
+    
     // ROS_INFO_STREAM(goal_vel);
+    for(int i=0; i<njoints_; i++)
+    {
+        goal_vel_q(i) = std::min(std::max(goal_vel_q(i), -180.0), 180.0);
+    }
+    // ROS_INFO_STREAM("vel");
     // ROS_INFO_STREAM(goal_vel_q);
 
     // ROS_INFO_STREAM(q_);
-    q_goal = q_ + (qd_ + goal_vel_q) * delta_t_;
+    q_goal = q_ + (goal_vel_q) * delta_t_;
     // goal_ = q_goal;
 
     for(int i=0; i<njoints_; i++)
@@ -790,13 +880,13 @@ math::VectorJd Robot::pid_vel(const math::VectorJd& goal_vel)
     }
     // ROS_INFO_STREAM(q_goal);
     
-    double p_pos = 10;
+    double p_pos = 150;
     double i_pos = 0;
     double d_pos = 0.99;
-    double p_vel = 100;
+    double p_vel = 10;
     double i_vel = 0;
-    double d_vel = 1;
-    double p_acc = 100;
+    double d_vel = 0.1;
+    double p_acc = 10;
     double i_acc = 0;
     double d_acc = 0.5;
     double err_pos = 0;
@@ -804,7 +894,7 @@ math::VectorJd Robot::pid_vel(const math::VectorJd& goal_vel)
     double err_acc = 0;
     double vel_ref = 0;
     double acc_ref = 0;
-    math::VectorJd jerk = Eigen::MatrixXd::Zero(6, 1);
+    jerk = Eigen::MatrixXd::Zero(6, 1);
 
     for(int idx=0; idx<njoints_; idx++)
     {
@@ -835,18 +925,20 @@ math::VectorJd Robot::pid_vel(const math::VectorJd& goal_vel)
         jerk(idx) = p_acc * err_acc + i_acc * acc_err_sum_(idx) * delta_t_ + d_acc * (err_acc - last_acc_err_(idx)) / delta_t_;
         last_acc_err_(idx) = err_acc;
 
-        // if(idx == 1)
-        // {
-        //     ROS_INFO_STREAM(err_pos);
-        //     ROS_INFO_STREAM(err_vel);
-        //     ROS_INFO_STREAM(err_acc);
-        //     ROS_INFO_STREAM(jerk(idx));
-        // }
+        if(idx == 1)
+        {
+            ROS_INFO_STREAM(err_pos);
+            ROS_INFO_STREAM(err_vel);
+            ROS_INFO_STREAM(err_acc);
+            // ROS_INFO_STREAM(jerk(idx));
+        }
         
         jerk(idx) = std::min(std::max(jerk(idx), -qddd_max_(idx)), qddd_max_(idx));
     }
     // ROS_INFO_STREAM(jerk);
     // ROS_INFO_STREAM("\n");
+    ROS_INFO_STREAM("JERK:");
+    ROS_INFO_STREAM(jerk);
     return jerk;
 
 }
@@ -879,6 +971,8 @@ math::VectorJd Robot::step(const math::VectorJd& jerk, const math::VectorJd& goa
         {
             X << q_(i), qd_(i), qdd_(i);
             jerk_clipped(i) = std::min(std::max(jerk(i), -qddd_max_(i)), qddd_max_(i));
+
+            
             unew = Adt_ * X + Bdt_ * jerk_clipped(i);
             // unew(0) = std::min(std::max(unew(0), q_max_(i, 0)), q_max_(i, 1));
             // unew(1) = std::min(std::max(unew(1), -qd_max_(i)), qd_max_(i));

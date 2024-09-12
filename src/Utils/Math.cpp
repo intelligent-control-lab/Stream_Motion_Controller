@@ -618,6 +618,28 @@ VectorJd IK_closed_form(const VectorJd& cur_q, const Eigen::Matrix4d& goal_T, co
         theta(i) = theta(i) * 180 / PI;
     }
 
+    ROS_INFO_STREAM("Before");
+    ROS_INFO_STREAM(theta);
+    for(int i=0; i<theta.rows(); i++)
+    {
+        if(theta(i) < -360)
+        {
+            theta(i) = -360;
+        }
+        if(theta(i) > 360)
+        {
+            theta(i) = 360;
+        }
+        // while(theta(i) < -180)
+        // {
+        //     theta(i) = theta(i) + 360;
+        // }
+        // while(theta(i) > 180)
+        // {
+        //     theta(i) = theta(i) - 360;
+        // }
+    }
+    ROS_INFO_STREAM(theta);
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
     // std::cout << "IK closed form calc time: " << duration.count() / 1000000.0 << " s" << std::endl;
