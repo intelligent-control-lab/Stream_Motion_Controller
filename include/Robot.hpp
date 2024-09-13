@@ -26,7 +26,8 @@ class Robot
         Eigen::MatrixXd q_;
         Eigen::MatrixXd qd_;
         Eigen::MatrixXd qdd_;
-        math::VectorJd goal_ = Eigen::MatrixXd::Constant(6, 1, 0);;
+        math::VectorJd goal_ = Eigen::MatrixXd::Constant(6, 1, 0);
+        math::VectorJd goal_qd_ = Eigen::MatrixXd::Constant(6, 1, 0);
 
         Eigen::MatrixXd q_max_; // njoints_ x 2
         Eigen::MatrixXd qd_max_; // njoints_ x 1
@@ -144,7 +145,7 @@ class Robot
         void Setup(const std::string& DH_fname, const std::string& base_fname);
         math::VectorJd pid(const math::VectorJd& goal);
         math::VectorJd pid_dq(const math::VectorJd& goal);
-        math::VectorJd pid_vel(const math::VectorJd& goal_vel);
+        math::VectorJd pid_vel(math::VectorJd& goal_vel);
         math::VectorJd jpc(const math::VectorJd& goal);
         math::VectorJd JSSA(const math::VectorJd& jerk_ref);
         math::VectorJd step(const math::VectorJd& jerk, const math::VectorJd& goal);

@@ -81,13 +81,17 @@ int main(int argc, char **argv)
                 cart_T_current.block(0, 0, 3, 3) = cart_T_teleop.block(0, 0, 3, 3);
                 cart_T_current.block(0, 3, 3, 1) = cart_T_current.block(0, 3, 3, 1) + cart_T_teleop.block(0, 3, 3, 1);
 
-                // cart_T_current(0, 3) = std::min(std::max(cart_T_current(0, 3), 0.4), 0.8);
-                // cart_T_current(1, 3) = std::min(std::max(cart_T_current(1, 3), -0.3), 0.3);
-                // cart_T_current(2, 3) = std::min(std::max(cart_T_current(2, 3), 0.3), 0.7);
+                cart_T_current(0, 3) = std::min(std::max(cart_T_current(0, 3), 0.4), 0.8);
+                cart_T_current(1, 3) = std::min(std::max(cart_T_current(1, 3), -0.3), 0.3);
+                cart_T_current(2, 3) = std::min(std::max(cart_T_current(2, 3), 0.3), 0.7);
             } 
             
             stmotion_controller::math::VectorJd cur_goal_teleop =  stmotion_controller::math::IK_closed_form(cur_goal, cart_T_current, robot->robot_DH(), 
                                                                         robot->robot_base_inv(), robot->robot_ee_inv(), 0, IK_status);
+                                                                        
+            // cur_goal_teleop =  stmotion_controller::math::IK(cur_goal, cart_T_current.block(0, 3, 3, 1), cart_T_current.block(0, 0, 3, 3), 
+            //                                                                                      robot->robot_DH(), 
+            //                                                                                      robot->robot_base(), 0, 10000, 0.001);
             
             // IK(const VectorJd& q, const Eigen::Matrix<double, 3, 1>& cart_goal, const Eigen::Matrix3d rot_goal, 
             // const Eigen::MatrixXd& DH, const Eigen::MatrixXd& base_frame, const bool& joint_rad, const uint& max_iter, const double& step)
@@ -95,9 +99,11 @@ int main(int argc, char **argv)
             // cur_goal_teleop =  stmotion_controller::math::IK(cur_goal, cart_T_current.block(0, 3, 3, 1), cart_T_current.block(0, 0, 3, 3), 
             //                                                                                      robot->robot_DH(), 
             //                                                                                      robot->robot_base(), 0, 10000, 0.001);
-
+            ROS_INFO_STREAM("Immediately after IK");
+            ROS_INFO_STREAM(cur_goal_teleop);
             if(cart_T_teleop(3,3) == -2.0) 
             {
+                ROS_INFO_STREAM("execute -2");
                 cur_goal_teleop = robot_q;
             }
 
@@ -123,6 +129,8 @@ int main(int argc, char **argv)
             ROS_INFO_STREAM("###########");
             ROS_INFO_STREAM(cur_goal);
             ROS_INFO_STREAM(cur_goal_teleop);
+            ROS_INFO_STREAM(IK_status);
+            ROS_INFO_STREAM(cart_T_current);
             
             goal_msg.data.clear();
             for(int j=0; j<robot->robot_dof(); j++)
