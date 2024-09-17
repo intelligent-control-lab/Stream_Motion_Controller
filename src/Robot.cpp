@@ -87,7 +87,7 @@ void Robot::Setup(const std::string& DH_fname, const std::string& base_fname)
     q_max_ << -90.0, 90.0,
             -80.0, 80.0,
             -80.0, 80.0,
-            -170.0, 170.0,
+            -185.0, 185.0,
             -90.0, 90.0,
             -270.0, 270.0;
     qd_max_ << 370.0, 310.0, 410.0, 550.0, 545.0, 1000;
@@ -791,7 +791,7 @@ math::VectorJd Robot::pid_vel(math::VectorJd& goal)
     //     ROS_INFO_STREAM(goal);
     //     // exit(0);
     // }
-
+    // ROS_INFO_STREAM("goal");
     Eigen::MatrixXd cart_T_cur = math::FK(q_, DH_, base_frame_, false);
     Eigen::MatrixXd cart_T_goal = math::FK(goal, DH_, base_frame_, false);
     Eigen::MatrixXd cart_T_goal_last = math::FK(last_target_goal, DH_, base_frame_, false);
@@ -834,7 +834,7 @@ math::VectorJd Robot::pid_vel(math::VectorJd& goal)
     
     // ROS_INFO_STREAM(d_x);//target_vel + 2 * d_x);
     double determinant = J.determinant();
-    ROS_INFO_STREAM(determinant);
+    // ROS_INFO_STREAM(determinant);
     if(abs(determinant) < 0.07)
     {
         // if(abs(goal(4)) < 10)
@@ -931,20 +931,20 @@ math::VectorJd Robot::pid_vel(math::VectorJd& goal)
         jerk(idx) = p_acc * err_acc + i_acc * acc_err_sum_(idx) * delta_t_ + d_acc * (err_acc - last_acc_err_(idx)) / delta_t_;
         last_acc_err_(idx) = err_acc;
 
-        if(idx == 1)
-        {
-            ROS_INFO_STREAM(err_pos);
-            ROS_INFO_STREAM(err_vel);
-            ROS_INFO_STREAM(err_acc);
-            // ROS_INFO_STREAM(jerk(idx));
-        }
+        // if(idx == 1)
+        // {
+        //     // ROS_INFO_STREAM(err_pos);
+        //     // ROS_INFO_STREAM(err_vel);
+        //     // ROS_INFO_STREAM(err_acc);
+        //     // ROS_INFO_STREAM(jerk(idx));
+        // }
         
         jerk(idx) = std::min(std::max(jerk(idx), -qddd_max_(idx)), qddd_max_(idx));
     }
     // ROS_INFO_STREAM(jerk);
     // ROS_INFO_STREAM("\n");
-    ROS_INFO_STREAM("JERK:");
-    ROS_INFO_STREAM(jerk);
+    // ROS_INFO_STREAM("JERK:");
+    // ROS_INFO_STREAM(jerk);
     return jerk;
 
 }
