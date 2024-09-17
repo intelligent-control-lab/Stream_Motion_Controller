@@ -3,7 +3,7 @@
     "DH_tool_fname":"/config/robot_properties/Fanuc_tool_DH.txt",
     "robot_base_fname":"/config/robot_properties/Fanuc_base.txt",
     "SSA_Enable":1,
-    "Use_Robot":0,
+    "Use_Robot":1,
     "JPC_travel_time":1,
     "Robot_IP":"192.168.1.100",
     "Simulation_controller_topic":
