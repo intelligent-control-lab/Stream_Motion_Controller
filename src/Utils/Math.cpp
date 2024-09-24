@@ -439,7 +439,7 @@ VectorJd IK_closed_form(const VectorJd& cur_q, const Eigen::Matrix4d& goal_T, co
     Eigen::Matrix3d R = T.block(0, 0, 3, 3);
     Eigen::Matrix<double, 3, 1> P = T.block(0, 3, 3, 1);
     double X, Y, Z, r, r2, a1, a12, a2, a22, a3, a32, d4, d42, m, e, c, l, l2, h, f1, f2, t1, t2, t3, k, g1, g2, q1, q2, min_diff,
-           th1, th2, th3, th4, th5, th6, tmp;
+           th1, th2, th3, th4, th5, th6;
     X = P(0, 0);
     Y = P(1, 0);
     Z = P(2, 0);
@@ -460,7 +460,8 @@ VectorJd IK_closed_form(const VectorJd& cur_q, const Eigen::Matrix4d& goal_T, co
     l2 = pow(l, 2);
     h = (c + e) * m - pow((m + a12 + a22), 2) + a12 * e + a22 * e + 4 * a12 * a22 - 4 * a12 * pow(Z, 2) - pow(r, 4);
 
-    double cond1, cond2;
+    double cond1, cond2, th3_tmp, th2_cond1, th2_cond2;
+    double th2_tmp1, th2_tmp2, th2_tmp3, th2_tmp4, th2_tmp;
     cond1 = 4 * l2 + 16 * a22 * h;
     min_diff = 10000;
     if(cond1 >= 0)
@@ -469,35 +470,137 @@ VectorJd IK_closed_form(const VectorJd& cur_q, const Eigen::Matrix4d& goal_T, co
         cond2 = d42 + a32 - pow(f1, 2);
         if(cond2 >= 0)
         {
-            tmp = 2 * atan((-d4 + sqrt(cond2)) / (a3 + f1));
-            if(abs(tmp - cur_theta(2)) < min_diff)
+            // First candidate
+            th3_tmp = 2 * atan((-d4 + sqrt(cond2)) / (a3 + f1));
+
+            f1 = -sin(th3_tmp) * d4 + a3 * cos(th3_tmp);
+            f2 = cos(th3_tmp) * d4 + a3 * sin(th3_tmp);
+            t1 = f1 + a2;
+            k = pow(f1, 2) + pow(f2, 2) + 2 * f1 * a2 + a12 + a22;
+            t2 = (r2 - k) / (2 * a1);
+            th2_cond1 = pow(f2, 2) + pow(t1, 2) - pow(t2, 2);
+
+            th2_tmp1 = 2 * atan((f2 + sqrt(th2_cond1)) / (t1 + t2)) + PI / 2;
+            th2_tmp2 = 2 * atan((f2 - sqrt(th2_cond1)) / (t1 + t2)) + PI / 2;
+
+            t1 = f2;
+            t2 = -f1-a2;
+            t3 = Z;
+            th2_tmp3 = 2 * atan((t2 + sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3)) + PI / 2;
+            if(ApproxEqNum(th2_tmp1, th2_tmp3, eps) || ApproxEqNum(th2_tmp2, th2_tmp3, eps))
             {
-                min_diff = abs(tmp - cur_theta(2));
-                th3 = tmp;
+                th2_tmp = th2_tmp3;
             }
-            tmp = 2 * atan((-d4 - sqrt(cond2)) / (a3 + f1));
-            if(abs(tmp - cur_theta(2)) < min_diff)
+            th2_tmp4 = 2 * atan((t2 - sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3)) + PI / 2;
+            if(ApproxEqNum(th2_tmp1, th2_tmp4, eps) || ApproxEqNum(th2_tmp2, th2_tmp4, eps))
             {
-                min_diff = abs(tmp - cur_theta(2));
-                th3 = tmp;
+                th2_tmp = th2_tmp4;
+            }
+            if(abs((th2_tmp) - cur_theta(1)) < min_diff)
+            {
+                min_diff = abs((th2_tmp) - cur_theta(1));
+                th3 = th3_tmp;
+                th2 = th2_tmp;
+            }
+
+            // Second candidate
+            th3_tmp = 2 * atan((-d4 - sqrt(cond2)) / (a3 + f1));
+            f1 = -sin(th3_tmp) * d4 + a3 * cos(th3_tmp);
+            f2 = cos(th3_tmp) * d4 + a3 * sin(th3_tmp);
+            t1 = f1 + a2;
+            k = pow(f1, 2) + pow(f2, 2) + 2 * f1 * a2 + a12 + a22;
+            t2 = (r2 - k) / (2 * a1);
+            th2_cond1 = pow(f2, 2) + pow(t1, 2) - pow(t2, 2);
+
+            th2_tmp1 = 2 * atan((f2 + sqrt(th2_cond1)) / (t1 + t2)) + PI / 2;
+            th2_tmp2 = 2 * atan((f2 - sqrt(th2_cond1)) / (t1 + t2)) + PI / 2;
+
+            t1 = f2;
+            t2 = -f1-a2;
+            t3 = Z;
+            th2_tmp3 = 2 * atan((t2 + sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3)) + PI / 2;
+            if(ApproxEqNum(th2_tmp1, th2_tmp3, eps) || ApproxEqNum(th2_tmp2, th2_tmp3, eps))
+            {
+                th2_tmp = th2_tmp3;
+            }
+            th2_tmp4 = 2 * atan((t2 - sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3)) + PI / 2;
+            if(ApproxEqNum(th2_tmp1, th2_tmp4, eps) || ApproxEqNum(th2_tmp2, th2_tmp4, eps))
+            {
+                th2_tmp = th2_tmp4;
+            }
+            if(abs((th2_tmp) - cur_theta(1)) < min_diff)
+            {
+                min_diff = abs((th2_tmp) - cur_theta(1));
+                th3 = th3_tmp;
+                th2 = th2_tmp;
             }
         }
         f1 = (-2 * l - sqrt(cond1)) / (8 * a22);
         cond2 = d42 + a32 - pow(f1, 2);
         if(cond2)
         {
-           
-            tmp = 2 * atan((-d4 + sqrt(cond2)) / (a3 + f1));
-            if(abs(tmp - cur_theta(2)) < min_diff)
+            // Third candidate
+            th3_tmp = 2 * atan((-d4 + sqrt(cond2)) / (a3 + f1));
+            f1 = -sin(th3_tmp) * d4 + a3 * cos(th3_tmp);
+            f2 = cos(th3_tmp) * d4 + a3 * sin(th3_tmp);
+            t1 = f1 + a2;
+            k = pow(f1, 2) + pow(f2, 2) + 2 * f1 * a2 + a12 + a22;
+            t2 = (r2 - k) / (2 * a1);
+            th2_cond1 = pow(f2, 2) + pow(t1, 2) - pow(t2, 2);
+
+            th2_tmp1 = 2 * atan((f2 + sqrt(th2_cond1)) / (t1 + t2)) + PI / 2;
+            th2_tmp2 = 2 * atan((f2 - sqrt(th2_cond1)) / (t1 + t2)) + PI / 2;
+
+            t1 = f2;
+            t2 = -f1-a2;
+            t3 = Z;
+            th2_tmp3 = 2 * atan((t2 + sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3)) + PI / 2;
+            if(ApproxEqNum(th2_tmp1, th2_tmp3, eps) || ApproxEqNum(th2_tmp2, th2_tmp3, eps))
             {
-                min_diff = abs(tmp - cur_theta(2));
-                th3 = tmp;
+                th2_tmp = th2_tmp3;
             }
-            tmp = 2 * atan((-d4 - sqrt(cond2)) / (a3 + f1));
-            if(abs(tmp - cur_theta(2)) < min_diff)
+            th2_tmp4 = 2 * atan((t2 - sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3)) + PI / 2;
+            if(ApproxEqNum(th2_tmp1, th2_tmp4, eps) || ApproxEqNum(th2_tmp2, th2_tmp4, eps))
             {
-                min_diff = abs(tmp - cur_theta(2));
-                th3 = tmp;
+                th2_tmp = th2_tmp4;
+            }
+            if(abs((th2_tmp) - cur_theta(1)) < min_diff)
+            {
+                min_diff = abs((th2_tmp) - cur_theta(1));
+                th3 = th3_tmp;
+                th2 = th2_tmp;
+            }
+            
+            // Fourth candidate
+            th3_tmp = 2 * atan((-d4 - sqrt(cond2)) / (a3 + f1));
+            f1 = -sin(th3_tmp) * d4 + a3 * cos(th3_tmp);
+            f2 = cos(th3_tmp) * d4 + a3 * sin(th3_tmp);
+            t1 = f1 + a2;
+            k = pow(f1, 2) + pow(f2, 2) + 2 * f1 * a2 + a12 + a22;
+            t2 = (r2 - k) / (2 * a1);
+            th2_cond1 = pow(f2, 2) + pow(t1, 2) - pow(t2, 2);
+
+            th2_tmp1 = 2 * atan((f2 + sqrt(th2_cond1)) / (t1 + t2)) + PI / 2;
+            th2_tmp2 = 2 * atan((f2 - sqrt(th2_cond1)) / (t1 + t2)) + PI / 2;
+
+            t1 = f2;
+            t2 = -f1-a2;
+            t3 = Z;
+            th2_tmp3 = 2 * atan((t2 + sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3)) + PI / 2;
+            if(ApproxEqNum(th2_tmp1, th2_tmp3, eps) || ApproxEqNum(th2_tmp2, th2_tmp3, eps))
+            {
+                th2_tmp = th2_tmp3;
+            }
+            th2_tmp4 = 2 * atan((t2 - sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3)) + PI / 2;
+            if(ApproxEqNum(th2_tmp1, th2_tmp4, eps) || ApproxEqNum(th2_tmp2, th2_tmp4, eps))
+            {
+                th2_tmp = th2_tmp4;
+            }
+            if(abs((th2_tmp) - cur_theta(1)) < min_diff)
+            {
+                min_diff = abs((th2_tmp) - cur_theta(1));
+                th3 = th3_tmp;
+                th2 = th2_tmp;
             }
         }
     }
@@ -506,32 +609,8 @@ VectorJd IK_closed_form(const VectorJd& cur_q, const Eigen::Matrix4d& goal_T, co
         status = false;
         return cur_q;
     }
-
-    f1 = -sin(th3) * d4 + a3 * cos(th3);
-    f2 = cos(th3) * d4 + a3 * sin(th3);
-    t1 = f1 + a2;
-    k = pow(f1, 2) + pow(f2, 2) + 2 * f1 * a2 + a12 + a22;
-    t2 = (r2 - k) / (2 * a1);
-    cond1 = pow(f2, 2) + pow(t1, 2) - pow(t2, 2);
-    double th2_tmp1, th2_tmp2, th2_tmp3;
-
-    th2_tmp1 = 2 * atan((f2 + sqrt(cond1)) / (t1 + t2)) + PI / 2;
-    th2_tmp2 = 2 * atan((f2 - sqrt(cond1)) / (t1 + t2)) + PI / 2;
-
-    t1 = f2;
-    t2 = -f1-a2;
-    t3 = Z;
-    th2_tmp3 = 2 * atan((t2 + sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3)) + PI / 2;
-    if(ApproxEqNum(th2_tmp1, th2_tmp3, eps) || ApproxEqNum(th2_tmp2, th2_tmp3, eps))
-    {
-        th2 = th2_tmp3;
-    }
-    th2_tmp3 = 2 * atan((t2 - sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3)) + PI / 2;
-    if(ApproxEqNum(th2_tmp1, th2_tmp3, eps) || ApproxEqNum(th2_tmp2, th2_tmp3, eps))
-    {
-        th2 = th2_tmp3;
-    }
-    double th2_tmp = th2 - PI / 2;
+    
+    th2_tmp = th2 - PI / 2;
 
     g1 = f1 * cos(th2_tmp) + f2 * sin(th2_tmp) + a2 * cos(th2_tmp);
     g2 = f1 * sin(th2_tmp) - f2 * cos(th2_tmp) + a2 * sin(th2_tmp);
@@ -618,28 +697,6 @@ VectorJd IK_closed_form(const VectorJd& cur_q, const Eigen::Matrix4d& goal_T, co
         theta(i) = theta(i) * 180 / PI;
     }
 
-    // ROS_INFO_STREAM("Before");
-    // ROS_INFO_STREAM(theta);
-    for(int i=0; i<theta.rows(); i++)
-    {
-        if(theta(i) < -360)
-        {
-            theta(i) = -360;
-        }
-        if(theta(i) > 360)
-        {
-            theta(i) = 360;
-        }
-        // while(theta(i) < -180)
-        // {
-        //     theta(i) = theta(i) + 360;
-        // }
-        // while(theta(i) > 180)
-        // {
-        //     theta(i) = theta(i) - 360;
-        // }
-    }
-    // ROS_INFO_STREAM(theta);
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
     // std::cout << "IK closed form calc time: " << duration.count() / 1000000.0 << " s" << std::endl;
@@ -669,7 +726,7 @@ VectorJd IK(const VectorJd& q, const Eigen::Matrix<double, 3, 1>& cart_goal, con
     Eigen::Quaterniond quat_e(rot_goal);
     
     Vector6d eps;
-    eps << 0.01, 0.01, 0.01, 0.01, 0.01, 0.01;
+    eps << 0.0001, 0.0001, 0.0001, 0.00001, 0.00001, 0.00001;
     Eigen::MatrixXd J, J_inv, d_th;
     Vector6d error = get_6d_error(pos_s, quat_s, pos_e, quat_e);
     uint iter_num = 0;
@@ -695,7 +752,7 @@ VectorJd IK(const VectorJd& q, const Eigen::Matrix<double, 3, 1>& cart_goal, con
         error = get_6d_error(pos_s, quat_s, pos_e, quat_e);
         iter_num ++;
     }
-    // std::cout << "IK iter num: " << iter_num << std::endl;
+    std::cout << "IK iter num: " << iter_num << std::endl;
     // Rad to Deg
     for(int i=0; i<q.rows(); i++)
     {
@@ -712,7 +769,7 @@ VectorJd IK(const VectorJd& q, const Eigen::Matrix<double, 3, 1>& cart_goal, con
 
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
-    // std::cout << "IK calc time: " << duration.count() / 1000000.0 << " s" << std::endl;
+    std::cout << "IK calc time: " << duration.count() / 1000000.0 << " s" << std::endl;
     return theta;
 }
 

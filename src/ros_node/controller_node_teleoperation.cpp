@@ -83,12 +83,12 @@ int main(int argc, char **argv)
                 cart_T_current.block(0, 3, 3, 1) = cart_T_current.block(0, 3, 3, 1) + cart_T_teleop.block(0, 3, 3, 1);
             
 
-                cart_T_current(0, 3) = std::min(std::max(cart_T_current(0, 3), 0.4), 0.8);
-                cart_T_current(1, 3) = std::min(std::max(cart_T_current(1, 3), -0.3), 0.3);
-                cart_T_current(2, 3) = std::min(std::max(cart_T_current(2, 3), 0.25), 0.7);
+                // cart_T_current(0, 3) = std::min(std::max(cart_T_current(0, 3), 0.4), 0.8);
+                // cart_T_current(1, 3) = std::min(std::max(cart_T_current(1, 3), -0.3), 0.3);
+                // cart_T_current(2, 3) = std::min(std::max(cart_T_current(2, 3), 0.25), 0.7);
 
-                cur_goal_teleop =  stmotion_controller::math::IK_closed_form(cur_goal, cart_T_current, robot->robot_DH(), 
-                                                                        robot->robot_base_inv(), robot->robot_ee_inv(), 0, IK_status);
+                // cur_goal_teleop =  stmotion_controller::math::IK_closed_form(cur_goal, cart_T_current, robot->robot_DH(), 
+                //                                                         robot->robot_base_inv(), robot->robot_ee_inv(), 0, IK_status);
             
             } 
             if(teleop_mode == 2.0)
@@ -99,14 +99,18 @@ int main(int argc, char **argv)
                 cart_T_current.block(0, 0, 3, 3) = cart_T_teleop.block(0, 0, 3, 3);
                 cart_T_current.block(0, 3, 3, 1) = cart_T_teleop.block(0, 3, 3, 1);
 
-                cart_T_current(0, 3) = std::min(std::max(cart_T_current(0, 3), 0.4), 0.8);
-                cart_T_current(1, 3) = std::min(std::max(cart_T_current(1, 3), -0.3), 0.3);
-                cart_T_current(2, 3) = std::min(std::max(cart_T_current(2, 3), 0.3), 0.7);
+                // cart_T_current(0, 3) = std::min(std::max(cart_T_current(0, 3), 0.4), 0.8);
+                // cart_T_current(1, 3) = std::min(std::max(cart_T_current(1, 3), -0.3), 0.3);
+                // cart_T_current(2, 3) = std::min(std::max(cart_T_current(2, 3), 0.25), 0.7);
 
-                cur_goal_teleop =  stmotion_controller::math::IK(cur_goal, cart_T_current.block(0, 3, 3, 1), cart_T_current.block(0, 0, 3, 3), 
-                                                                                                 robot->robot_DH(), robot->robot_base(), 0, 10000, 0.001);
+                // cur_goal_teleop =  stmotion_controller::math::IK(cur_goal, cart_T_current.block(0, 3, 3, 1), cart_T_current.block(0, 0, 3, 3), 
+                //                                                                                  robot->robot_DH(), robot->robot_base(), 0, 10000, 0.001);
+                // cur_goal_teleop =  stmotion_controller::math::IK_closed_form(cur_goal, cart_T_current, robot->robot_DH(), 
+                //                                                         robot->robot_base_inv(), robot->robot_ee_inv(), 0, IK_status);
             } 
             
+            cur_goal_teleop =  stmotion_controller::math::IK_closed_form(cur_goal, cart_T_current, robot->robot_DH(), 
+                                                                        robot->robot_base_inv(), robot->robot_ee_inv(), 0, IK_status);
             
            
                                                                  
