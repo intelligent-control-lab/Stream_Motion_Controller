@@ -86,6 +86,7 @@ int main(int argc, char **argv)
         stmotion_controller::udp::recv_pack recv_packet;
         ros::Subscriber jpc_travel_time_sub = nh.subscribe("jpc_travel_time", 1, jpcTravelTimeCallback);
         ros::Publisher robot_state_pub = nh.advertise<std_msgs::Float32MultiArray>("robot_state", robot->robot_dof() * 3); // pos, vel, acc
+        ros::Publisher robot_state_cart_pub = nh.advertise<std_msgs::Float32MultiArray>("robot_state_cart", 16); // pos, vel, acc
         ros::Subscriber goal_sub = nh.subscribe("robot_goal", robot->robot_dof(), goalCallback);
         ros::Subscriber human_state_sub = nh.subscribe("human_state", 42, humanStateCallback);
         ros::Publisher j1_pub = nh.advertise<std_msgs::Float64>(j1_topic, 1);
@@ -95,6 +96,7 @@ int main(int argc, char **argv)
         ros::Publisher j5_pub = nh.advertise<std_msgs::Float64>(j5_topic, 1);
         ros::Publisher j6_pub = nh.advertise<std_msgs::Float64>(j6_topic, 1);
         std_msgs::Float32MultiArray robot_state_msg;
+        std_msgs::Float32MultiArray robot_state_cart_msg;
         std_msgs::Float64 j1_msg;
         std_msgs::Float64 j2_msg;
         std_msgs::Float64 j3_msg;
@@ -147,6 +149,18 @@ int main(int argc, char **argv)
                 robot_state_msg.data.push_back(cur_qdd(j));
             }
             robot_state_pub.publish(robot_state_msg);
+
+            // Publish the current cartesian transformation matrix of the end effector
+            Eigen::MatrixXd cart_T_current = stmotion_controller::math::FK(cur_q, robot->robot_DH(), robot->robot_base(), false);
+            robot_state_cart_msg.data.clear();
+            for(int i=0; i<4; i++)
+            {
+                for(int j=0; j<4; j++)
+                {
+                     robot_state_cart_msg.data.push_back(cart_T_current(i,j));
+                }
+            }
+            robot_state_cart_pub.publish(robot_state_cart_msg);
 
             // Calculate control command
             if(nominal_mode.compare("pid") == 0)
