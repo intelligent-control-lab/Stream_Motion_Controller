@@ -52,7 +52,8 @@ int main(int argc, char **argv)
         int task_idx = -1;
         stmotion_controller::math::VectorJd cur_goal = Eigen::MatrixXd::Zero(6, 1);
         cur_goal = joint_goal.col(0);
-
+        unsigned int microsecond = 1000;
+        usleep(300 * microsecond);
         while(ros::ok)
         {
             if(task_idx == -1 || reached_goal(cur_goal))

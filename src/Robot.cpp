@@ -60,17 +60,25 @@ void Robot::set_DH_tool_disassemble(const std::string fname)
 void Robot::Setup(const std::string& DH_fname, const std::string& base_fname)
 {
     thetamax_.resize(njoints_, 2);
+    thetamax_rad_.resize(njoints_, 2);
     thetadotmax_.resize(njoints_, 1);
     q_.resize(njoints_, 1);
     qd_.resize(njoints_, 1);
     qdd_.resize(njoints_, 1);
+    
+    thetamax_ << -120, 120,
+                 -120, 90,
+                 -90, 90,
+                 -180, 180,
+                 -120, 120,
+                 -360, 360;
+    thetadotmax_ << 370, 310, 410, 550, 545, 1000;
     for(int i=0; i<njoints_; i++)
     {
-        thetadotmax_.row(i) << 35 * PI / 180;
-        thetamax_.row(i) << 170 * PI / 180, -170 * PI / 180;
         q_.row(i) << 0.0;
         qd_.row(i) << 0.0;
         qdd_.row(i) << 0.0;
+        thetamax_rad_.row(i) << thetamax_(i, 0) / 180 * PI, thetamax_(i, 1) / 180 * PI;
     }
     std::cout << "Load DH from: " << DH_fname << std::endl;
     DH_ = stmotion_controller::io::LoadMatFromFile(DH_fname);
@@ -245,6 +253,338 @@ void Robot::set_JPC_speed(const double& t)
     {
         pid_threshold_step_(i) = -1;
     }
+}
+
+
+math::VectorJd Robot::IK(const math::VectorJd& cur_q, const Eigen::Matrix4d& goal_T, const Eigen::MatrixXd& DH,
+                         const Eigen::Matrix4d& T_tool_inv, const bool& joint_rad, bool& status)
+{
+    double eps = 1e-10;
+    status = false;
+    math::VectorJd theta = cur_q;
+    Eigen::MatrixXd DH_cur = DH;
+    if(!joint_rad)
+    {
+        // Deg to Rad
+        for(int i=0; i<cur_q.rows(); i++)
+        {
+            theta(i) = theta(i) * PI / 180;
+        }
+    }
+    math::VectorJd cur_theta = theta;
+    math::VectorJd theta_tmp = theta;
+    Eigen::Matrix4d T = T_base_inv_ * goal_T * T_tool_inv;
+    Eigen::Matrix3d R = T.block(0, 0, 3, 3);
+    Eigen::Matrix<double, 3, 1> P = T.block(0, 3, 3, 1);
+    double X, Y, Z, r, r2, a1, a12, a2, a22, a3, a32, d4, d42, m, e, c, l, l2, h, f1, f2, t1, t2, t3, k, g1, g2, q1, q2, min_diff;
+    double th1_tmp, th2_tmp, th3_tmp, th4_tmp, th5_tmp, th6_tmp;
+    X = P(0, 0);
+    Y = P(1, 0);
+    Z = P(2, 0);
+    r = sqrt(pow(X, 2) + pow(Y, 2) + pow(Z, 2));
+    a1 = DH(0, 2);
+    a2 = DH(1, 2);
+    a3 = DH(2, 2);
+    d4 = DH(3, 1);
+    r2 = pow(r, 2);
+    a12 = pow(a1, 2);
+    a22 = pow(a2, 2);
+    a32 = pow(a3, 2);
+    d42 = pow(d4, 2);
+    m = a32 + d42;
+    e = 2 * r2;
+    c = 4 * a12;
+    l = a2 * (2 * m + 2 * a12 + 2 * a22 - c - e);
+    l2 = pow(l, 2);
+    h = (c + e) * m - pow((m + a12 + a22), 2) + a12 * e + a22 * e + 4 * a12 * a22 - 4 * a12 * pow(Z, 2) - pow(r, 4);
+
+    double cond1, cond2, th2_tmp1, th2_tmp2;
+    cond1 = 4 * l2 + 16 * a22 * h;
+    min_diff = 10000;
+    Eigen::MatrixXd th23_candidates;
+    int th23_candidate_cnt, th1_candidate_cnt, all_candidate_cnt;
+    th23_candidate_cnt = 0;
+    th1_candidate_cnt = 0;
+    all_candidate_cnt = 0;
+    th23_candidates.resize(8, 2);
+    if(cond1 >= 0)
+    {
+        f1 = (-2 * l + sqrt(cond1)) / (8 * a22 + eps);
+        cond2 = d42 + a32 - pow(f1, 2);
+        if(cond2 >= 0)
+        {
+            // First candidate
+            th3_tmp = 2 * atan((-d4 + sqrt(cond2)) / (a3 + f1 + eps));
+
+            f1 = -sin(th3_tmp) * d4 + a3 * cos(th3_tmp);
+            f2 = cos(th3_tmp) * d4 + a3 * sin(th3_tmp);
+            t1 = f1 + a2;
+            k = pow(f1, 2) + pow(f2, 2) + 2 * f1 * a2 + a12 + a22;
+            t2 = (r2 - k) / (2 * a1 + eps);
+            t1 = f2;
+            t2 = -f1-a2;
+            t3 = Z;
+            th2_tmp1 = 2 * atan((t2 + sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3 + eps)) + PI / 2;
+            th2_tmp2 = 2 * atan((t2 - sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3 + eps)) + PI / 2;
+
+            if(th3_tmp < thetamax_rad_(2, 1) && th3_tmp > thetamax_rad_(2, 0))
+            {
+                if(th2_tmp1 < thetamax_rad_(1, 1) && th2_tmp1 > thetamax_rad_(1, 0))
+                {
+                    th23_candidates.row(th23_candidate_cnt) << th2_tmp1, th3_tmp;
+                    th23_candidate_cnt ++;
+                }
+                if(th2_tmp2 < thetamax_rad_(1, 1) && th2_tmp2 > thetamax_rad_(1, 0))
+                {
+                    th23_candidates.row(th23_candidate_cnt) << th2_tmp2, th3_tmp;
+                    th23_candidate_cnt ++;
+                }
+            }
+
+            // Second candidate
+            th3_tmp = 2 * atan((-d4 - sqrt(cond2)) / (a3 + f1 + eps));
+            f1 = -sin(th3_tmp) * d4 + a3 * cos(th3_tmp);
+            f2 = cos(th3_tmp) * d4 + a3 * sin(th3_tmp);
+            t1 = f1 + a2;
+            k = pow(f1, 2) + pow(f2, 2) + 2 * f1 * a2 + a12 + a22;
+            t2 = (r2 - k) / (2 * a1 + eps);
+            t1 = f2;
+            t2 = -f1-a2;
+            t3 = Z;
+            th2_tmp1 = 2 * atan((t2 + sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3 + eps)) + PI / 2;
+            th2_tmp2 = 2 * atan((t2 - sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3 + eps)) + PI / 2;
+            if(th3_tmp < thetamax_rad_(2, 1) && th3_tmp > thetamax_rad_(2, 0))
+            {
+                if(th2_tmp1 < thetamax_rad_(1, 1) && th2_tmp1 > thetamax_rad_(1, 0))
+                {
+                    th23_candidates.row(th23_candidate_cnt) << th2_tmp1, th3_tmp;
+                    th23_candidate_cnt ++;
+                }
+                if(th2_tmp2 < thetamax_rad_(1, 1) && th2_tmp2 > thetamax_rad_(1, 0))
+                {
+                    th23_candidates.row(th23_candidate_cnt) << th2_tmp2, th3_tmp;
+                    th23_candidate_cnt ++;
+                }
+            }
+        }
+        f1 = (-2 * l - sqrt(cond1)) / (8 * a22 + eps);
+        cond2 = d42 + a32 - pow(f1, 2);
+        if(cond2)
+        {
+            // Third candidate
+            th3_tmp = 2 * atan((-d4 + sqrt(cond2)) / (a3 + f1 + eps));
+            f1 = -sin(th3_tmp) * d4 + a3 * cos(th3_tmp);
+            f2 = cos(th3_tmp) * d4 + a3 * sin(th3_tmp);
+            t1 = f1 + a2;
+            k = pow(f1, 2) + pow(f2, 2) + 2 * f1 * a2 + a12 + a22;
+            t2 = (r2 - k) / (2 * a1 + eps);
+            t1 = f2;
+            t2 = -f1-a2;
+            t3 = Z;
+            th2_tmp1 = 2 * atan((t2 + sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3 + eps)) + PI / 2;
+            th2_tmp2 = 2 * atan((t2 - sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3 + eps)) + PI / 2;
+            if(th3_tmp < thetamax_rad_(2, 1) && th3_tmp > thetamax_rad_(2, 0))
+            {
+                if(th2_tmp1 < thetamax_rad_(1, 1) && th2_tmp1 > thetamax_rad_(1, 0))
+                {
+                    th23_candidates.row(th23_candidate_cnt) << th2_tmp1, th3_tmp;
+                    th23_candidate_cnt ++;
+                }
+                if(th2_tmp2 < thetamax_rad_(1, 1) && th2_tmp2 > thetamax_rad_(1, 0))
+                {
+                    th23_candidates.row(th23_candidate_cnt) << th2_tmp2, th3_tmp;
+                    th23_candidate_cnt ++;
+                }
+            }
+            
+            // Fourth candidate
+            th3_tmp = 2 * atan((-d4 - sqrt(cond2)) / (a3 + f1 + eps));
+            f1 = -sin(th3_tmp) * d4 + a3 * cos(th3_tmp);
+            f2 = cos(th3_tmp) * d4 + a3 * sin(th3_tmp);
+            t1 = f1 + a2;
+            k = pow(f1, 2) + pow(f2, 2) + 2 * f1 * a2 + a12 + a22;
+            t2 = (r2 - k) / (2 * a1 + eps);
+            t1 = f2;
+            t2 = -f1-a2;
+            t3 = Z;
+            th2_tmp1 = 2 * atan((t2 + sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3 + eps)) + PI / 2;
+            th2_tmp2 = 2 * atan((t2 - sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3 + eps)) + PI / 2;
+            if(th3_tmp < thetamax_rad_(2, 1) && th3_tmp > thetamax_rad_(2, 0))
+            {
+                if(th2_tmp1 < thetamax_rad_(1, 1) && th2_tmp1 > thetamax_rad_(1, 0))
+                {
+                    th23_candidates.row(th23_candidate_cnt) << th2_tmp1, th3_tmp;
+                    th23_candidate_cnt ++;
+                }
+                if(th2_tmp2 < thetamax_rad_(1, 1) && th2_tmp2 > thetamax_rad_(1, 0))
+                {
+                    th23_candidates.row(th23_candidate_cnt) << th2_tmp2, th3_tmp;
+                    th23_candidate_cnt ++;
+                }
+            }
+        }
+    }
+    else
+    {
+        status = false;
+        return cur_q;
+    }
+    
+    Eigen::MatrixXd th1_candidates, candidates;
+    Eigen::Matrix4d verify_T;
+    th1_candidates.resize(2, 1);
+    candidates.resize(32, njoints_);
+    double th1_tmp1, th1_tmp2;
+    for(int i=0; i<th23_candidate_cnt; i++)
+    {
+        th2_tmp = th23_candidates(i, 0) - PI / 2;
+        th3_tmp = th23_candidates(i, 1);
+        th1_candidate_cnt = 0;
+
+        g1 = f1 * cos(th2_tmp) + f2 * sin(th2_tmp) + a2 * cos(th2_tmp);
+        g2 = f1 * sin(th2_tmp) - f2 * cos(th2_tmp) + a2 * sin(th2_tmp);
+        q1 = g1+a1;
+        q2 = 0;
+        cond1 = pow(q2, 2) + pow(q1, 2) - pow(X, 2);
+        q1 = 0;
+        q2 = g1+a1;
+        th1_tmp1 = 2 * atan((q2 + sqrt(pow(q2, 2) + pow(q1, 2) - pow(Y, 2))) / (q1 + Y + eps));
+        th1_tmp2 = 2 * atan((q2 - sqrt(pow(q2, 2) + pow(q1, 2) - pow(Y, 2))) / (q1 + Y + eps));
+        if(th1_tmp1 < thetamax_rad_(0, 1) && th1_tmp1 > thetamax_rad_(0, 0))
+        {
+            th1_candidates.row(th1_candidate_cnt) << th1_tmp1;
+            th1_candidate_cnt ++;
+        }
+        if(th1_tmp2 < thetamax_rad_(0, 1) && th1_tmp2 > thetamax_rad_(0, 0))
+        {
+            th1_candidates.row(th1_candidate_cnt) << th1_tmp2;
+            th1_candidate_cnt ++;
+        }
+        for(int j=0; j<th1_candidate_cnt; j++)
+        {
+            theta_tmp(0) = th1_candidates(j, 0);
+            theta_tmp(1) = th2_tmp + PI / 2;;
+            theta_tmp(2) = th3_tmp;
+            DH_cur.col(0) = DH.col(0) + theta_tmp;
+            Eigen::Matrix3d R03 = Eigen::Matrix3d::Identity(3, 3);
+            Eigen::MatrixXd a = DH_cur.col(3);
+            Eigen::MatrixXd q = DH_cur.col(0);
+            Eigen::Matrix3d temp(3, 3); 
+            for(int k=0; k<3; k++)
+            {
+                temp << cos(q(k)), -sin(q(k)) * cos(a(k)),  sin(q(k)) * sin(a(k)),  
+                        sin(q(k)),  cos(q(k)) * cos(a(k)), -cos(q(k)) * sin(a(k)),  
+                        0,          sin(a(k)),              cos(a(k));
+                R03 = R03 * temp;
+            }
+            Eigen::Matrix3d R36 = math::PInv(R03) * R;
+            th5_tmp = acos(-R36(2, 2));
+            double s5 = sin(th5_tmp) + eps;
+
+            if(abs(s5) <= 0.000001)
+            {
+                th4_tmp = 0;
+                th5_tmp = 0;
+                th6_tmp = atan2(R36(0, 1), R36(0, 0));
+                theta_tmp(3) = th4_tmp;
+                theta_tmp(4) = th5_tmp;
+                theta_tmp(5) = th6_tmp;
+                if(joint_in_range(theta_tmp, 1))
+                {
+                    candidates.row(all_candidate_cnt) << theta_tmp.transpose(); 
+                    all_candidate_cnt ++;
+                }
+
+                th5_tmp = PI;
+                th6_tmp = atan2(R36(1, 0), -R36(1, 1));
+                theta_tmp(3) = th4_tmp;
+                theta_tmp(4) = th5_tmp;
+                theta_tmp(5) = th6_tmp;
+                if(joint_in_range(theta_tmp, 1))
+                {
+                    candidates.row(all_candidate_cnt) << theta_tmp.transpose(); 
+                    all_candidate_cnt ++;
+                }
+            }
+            else
+            {
+                double th4_1 = atan2(R36(1, 2) / s5, R36(0, 2) / s5);
+                double th6_1 = atan2(R36(2, 1) / s5, R36(2, 0) / s5);
+                double sum1 = sqrt(pow(th5_tmp, 2) + pow(th4_1, 2) + pow(th6_1, 2));
+                s5 = sin(-th5_tmp);
+                double th4_2 = atan2(R36(1, 2) / s5, R36(0, 2) / s5);
+                double th6_2 = atan2(R36(2, 1) / s5, R36(2, 0) / s5);
+                double sum2 = sqrt(pow(th5_tmp, 2) + pow(th4_2, 2) + pow(th6_2, 2));
+
+                th4_tmp = th4_1;
+                th6_tmp = th6_1;
+                theta_tmp(3) = th4_tmp;
+                theta_tmp(4) = th5_tmp;
+                theta_tmp(5) = th6_tmp;
+                if(joint_in_range(theta_tmp, 1))
+                {
+                    candidates.row(all_candidate_cnt) << theta_tmp.transpose(); 
+                    all_candidate_cnt ++;
+                }
+                
+                th5_tmp = -th5_tmp;
+                th4_tmp = th4_2;
+                th6_tmp = th6_2;
+                theta_tmp(3) = th4_tmp;
+                theta_tmp(4) = th5_tmp;
+                theta_tmp(5) = th6_tmp;
+                if(joint_in_range(theta_tmp, 1))
+                {
+                    candidates.row(all_candidate_cnt) << theta_tmp.transpose(); 
+                    all_candidate_cnt ++;
+                }
+            } 
+        }  
+    }
+    status = false;
+    for(int i=0; i<all_candidate_cnt; i++)
+    {   
+        theta_tmp = candidates.row(i);
+        verify_T = math::FK(theta_tmp, DH, base_frame_, 1);
+        if(verify_T.isApprox(goal_T, 0.01) && (theta_tmp - cur_theta).norm() < min_diff)// && joint_in_range(theta_tmp, 1))
+        {
+            theta = theta_tmp;
+            min_diff = (theta_tmp - cur_theta).norm();
+            status = true;            
+        }
+    }
+    if(!status)
+    {
+        return cur_q;
+    }
+
+    // Rad to Deg
+    for(int i=0; i<theta.rows(); i++)
+    {
+        theta(i) = theta(i) * 180 / PI;
+    }
+    return theta;
+}
+
+bool Robot::joint_in_range(const math::VectorJd& theta, const bool& is_rad)
+{
+    math::VectorJd theta_deg = theta;
+    if(is_rad)
+    {
+        // Rad to Deg
+        for(int i=0; i<theta.rows(); i++)
+        {
+            theta_deg(i) = theta_deg(i) / PI * 180;
+        }
+    }
+    for(int i=0; i<theta.rows(); i++)
+    {
+        if(theta_deg(i) < thetamax_(i, 0) || theta_deg(i) > thetamax_(i, 1))
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 math::VectorJd Robot::JSSA(const math::VectorJd& jerk_ref)

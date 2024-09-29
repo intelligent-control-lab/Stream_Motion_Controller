@@ -28,6 +28,7 @@ class Robot
         Eigen::MatrixXd qdd_;
 
         Eigen::MatrixXd thetamax_; // njoints_ x 2
+        Eigen::MatrixXd thetamax_rad_;
         Eigen::MatrixXd thetadotmax_; // njoints_ x 2
         double pos_epsilon_ = 5;
         double vel_epsilon_ = 0.000001;
@@ -140,6 +141,9 @@ class Robot
         bool is_static();
         bool reached_goal(math::VectorJd goal);
         int ssa_status() {return ssa_on_;};
+        bool joint_in_range(const math::VectorJd& theta, const bool& is_rad);
+        math::VectorJd IK(const math::VectorJd& cur_q, const Eigen::Matrix4d& goal_T, const Eigen::MatrixXd& DH,
+                          const Eigen::Matrix4d& T_tool_inv, const bool& joint_rad, bool& status);
 
 };
 }
