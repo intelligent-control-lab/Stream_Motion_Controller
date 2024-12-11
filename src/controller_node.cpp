@@ -81,8 +81,8 @@ int main(int argc, char **argv)
         robot->Setup(DH_fname, robot_base_fname);
         robot->set_JPC_speed(jpc_travel_time);
         robot->print_robot_property();
-        stmotion_controller::math::VectorJd jerk_ref = Eigen::MatrixXd::Zero(6, 1);
-        stmotion_controller::math::VectorJd jerk_safe = Eigen::MatrixXd::Zero(6, 1);
+        stmotion_controller::math::VectorJd jerk_ref = Eigen::MatrixXd::Zero(robot->robot_dof(), 1);
+        stmotion_controller::math::VectorJd jerk_safe = Eigen::MatrixXd::Zero(robot->robot_dof(), 1);
         stmotion_controller::udp::recv_pack recv_packet;
         ros::Subscriber jpc_travel_time_sub = nh.subscribe("jpc_travel_time", 1, jpcTravelTimeCallback);
         ros::Publisher robot_state_pub = nh.advertise<std_msgs::Float32MultiArray>("robot_state", robot->robot_dof() * 3); // pos, vel, acc

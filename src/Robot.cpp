@@ -93,6 +93,7 @@ void Robot::Setup(const std::string& DH_fname, const std::string& base_fname)
     qd_max_ << 370.0, 310.0, 410.0, 550.0, 545.0, 1000;
     qdd_max_ << 770.0, 645.0, 1025.0, 2022.0, 2128.0, 1785.0;
     qddd_max_ << 3211.0, 2690.0, 5125.0, 14868.0, 16632.0, 6377.0;
+    human_cap_.resize(6);
     
     for(int i=0; i<njoints_; i++)
     {
@@ -355,7 +356,6 @@ math::VectorJd Robot::JSSA(const math::VectorJd& jerk_ref)
 
     // Calculate safety index
     calculateSafetyIdx(D, BJ, margin_ + cap_cur_[critical_link1_ - 1].r + human_cap_[critical_link2_].r, jerk_ref_rad);
-
     // Unsafe: modify jerk
     if(phi_safe_ > 0)
     {
