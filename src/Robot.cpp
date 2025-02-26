@@ -67,34 +67,25 @@ void Robot::set_human_cap(const std::vector<stmotion_controller::math::Capsule>&
         
 void Robot::Setup(const std::string& DH_fname, const std::string& base_fname)
 {
-    q_max_.resize(njoints_, 2);
-    qd_max_.resize(njoints_, 1);
-    qdd_max_.resize(njoints_, 1);
-    qddd_max_.resize(njoints_, 1);
+    thetamax_.resize(njoints_, 2);
+    thetamax_rad_.resize(njoints_, 2);
+    thetadotmax_.resize(njoints_, 1);
+    thetadotdotmax_.resize(njoints_, 1);
     q_.resize(njoints_, 1);
     qd_.resize(njoints_, 1);
     qdd_.resize(njoints_, 1);
-    target_vel.resize(njoints_, 1);
-    last_target_goal.resize(njoints_, 1);
-    human_cap_.resize(6);
-
-    // q_max_ << -90.0, 90.0,
-    //         -80.0, 80.0,
-    //         -80.0, 80.0,
-    //         -80.0, 80.0,
-    //         -90.0, 90.0,
-    //         -170.0, 170.0;
-    q_max_ << -90.0, 90.0,
-            -80.0, 80.0,
-            -80.0, 80.0,
-            -185.0, 185.0,
-            -90.0, 90.0,
-            -270.0, 270.0;
-    qd_max_ << 370.0, 310.0, 410.0, 550.0, 545.0, 1000;
-    qdd_max_ << 770.0, 645.0, 1025.0, 2022.0, 2128.0, 1785.0;
-    qddd_max_ << 3211.0, 2690.0, 5125.0, 14868.0, 16632.0, 6377.0;
+    target_vel.resize(6, 1);
+    last_target_goal.resize(6, 1);
     human_cap_.resize(6);
     
+    thetamax_ << -120, 120,
+                 -120, 90,
+                 -90, 90,
+                 -160, 160,
+                 -120, 120,
+                 -300, 300;
+    thetadotmax_ << 370, 310, 410, 550, 545, 1000;
+    thetadotdotmax_ << 3211.0, 2690.0, 5125.0, 14868.0, 16632.0, 6377.0;
     for(int i=0; i<njoints_; i++)
     {
         q_.row(i) << 0.0;
@@ -102,6 +93,7 @@ void Robot::Setup(const std::string& DH_fname, const std::string& base_fname)
         qdd_.row(i) << 0.0;
         target_vel.row(i) << 0.0;
         last_target_goal.row(i) << 0.0;
+        thetamax_rad_.row(i) << thetamax_(i, 0) / 180 * PI, thetamax_(i, 1) / 180 * PI;
     }
     std::cout << "Load DH from: " << DH_fname << std::endl;
     DH_ = stmotion_controller::io::LoadMatFromFile(DH_fname);
@@ -157,9 +149,12 @@ void Robot::Setup(const std::string& DH_fname, const std::string& base_fname)
     cap_[4].r = 0.1;
 
     cap_[5].p.resize(3, 2);
-    cap_[5].p.col(0) << 0.05, 0, 0.1107;
-    cap_[5].p.col(1) << 0.18, 0, 0.1107;
-    cap_[5].r = 0.01;
+    // cap_[5].p.col(0) << 0.05, 0, 0.1107;
+    // cap_[5].p.col(1) << 0.18, 0, 0.1107;
+    // cap_[5].r = 0.01;
+    cap_[5].p.col(0) << 0, 0, 0;
+    cap_[5].p.col(1) << 0, 0, 0;
+    cap_[5].r = 0.0001;
 
     cap_cur_[0].p.resize(3, 2);
     cap_cur_[0].r = cap_[0].r;
@@ -174,6 +169,7 @@ void Robot::Setup(const std::string& DH_fname, const std::string& base_fname)
     cap_cur_[5].p.resize(3, 2);
     cap_cur_[5].r = cap_[5].r;
 
+    
     human_cap_[0].p.resize(3, 2);
     human_cap_[0].r = 0.0;
     human_cap_[0].p.col(0) << 1.21, 0, 1.7;
@@ -276,6 +272,338 @@ void Robot::set_JPC_speed(const double& t)
     {
         pid_threshold_step_(i) = -1;
     }
+}
+
+
+math::VectorJd Robot::IK(const math::VectorJd& cur_q, const Eigen::Matrix4d& goal_T, const Eigen::MatrixXd& DH,
+                         const Eigen::Matrix4d& T_tool_inv, const bool& joint_rad, bool& status)
+{
+    double eps = 1e-10;
+    status = false;
+    math::VectorJd theta = cur_q;
+    Eigen::MatrixXd DH_cur = DH;
+    if(!joint_rad)
+    {
+        // Deg to Rad
+        for(int i=0; i<cur_q.rows(); i++)
+        {
+            theta(i) = theta(i) * PI / 180;
+        }
+    }
+    math::VectorJd cur_theta = theta;
+    math::VectorJd theta_tmp = theta;
+    Eigen::Matrix4d T = T_base_inv_ * goal_T * T_tool_inv;
+    Eigen::Matrix3d R = T.block(0, 0, 3, 3);
+    Eigen::Matrix<double, 3, 1> P = T.block(0, 3, 3, 1);
+    double X, Y, Z, r, r2, a1, a12, a2, a22, a3, a32, d4, d42, m, e, c, l, l2, h, f1, f2, t1, t2, t3, k, g1, g2, q1, q2, min_diff;
+    double th1_tmp, th2_tmp, th3_tmp, th4_tmp, th5_tmp, th6_tmp;
+    X = P(0, 0);
+    Y = P(1, 0);
+    Z = P(2, 0);
+    r = sqrt(pow(X, 2) + pow(Y, 2) + pow(Z, 2));
+    a1 = DH(0, 2);
+    a2 = DH(1, 2);
+    a3 = DH(2, 2);
+    d4 = DH(3, 1);
+    r2 = pow(r, 2);
+    a12 = pow(a1, 2);
+    a22 = pow(a2, 2);
+    a32 = pow(a3, 2);
+    d42 = pow(d4, 2);
+    m = a32 + d42;
+    e = 2 * r2;
+    c = 4 * a12;
+    l = a2 * (2 * m + 2 * a12 + 2 * a22 - c - e);
+    l2 = pow(l, 2);
+    h = (c + e) * m - pow((m + a12 + a22), 2) + a12 * e + a22 * e + 4 * a12 * a22 - 4 * a12 * pow(Z, 2) - pow(r, 4);
+
+    double cond1, cond2, th2_tmp1, th2_tmp2;
+    cond1 = 4 * l2 + 16 * a22 * h;
+    min_diff = 10000;
+    Eigen::MatrixXd th23_candidates;
+    int th23_candidate_cnt, th1_candidate_cnt, all_candidate_cnt;
+    th23_candidate_cnt = 0;
+    th1_candidate_cnt = 0;
+    all_candidate_cnt = 0;
+    th23_candidates.resize(8, 2);
+    if(cond1 >= 0)
+    {
+        f1 = (-2 * l + sqrt(cond1)) / (8 * a22 + eps);
+        cond2 = d42 + a32 - pow(f1, 2);
+        if(cond2 >= 0)
+        {
+            // First candidate
+            th3_tmp = 2 * atan((-d4 + sqrt(cond2)) / (a3 + f1 + eps));
+
+            f1 = -sin(th3_tmp) * d4 + a3 * cos(th3_tmp);
+            f2 = cos(th3_tmp) * d4 + a3 * sin(th3_tmp);
+            t1 = f1 + a2;
+            k = pow(f1, 2) + pow(f2, 2) + 2 * f1 * a2 + a12 + a22;
+            t2 = (r2 - k) / (2 * a1 + eps);
+            t1 = f2;
+            t2 = -f1-a2;
+            t3 = Z;
+            th2_tmp1 = 2 * atan((t2 + sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3 + eps)) + PI / 2;
+            th2_tmp2 = 2 * atan((t2 - sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3 + eps)) + PI / 2;
+
+            if(th3_tmp < thetamax_rad_(2, 1) && th3_tmp > thetamax_rad_(2, 0))
+            {
+                if(th2_tmp1 < thetamax_rad_(1, 1) && th2_tmp1 > thetamax_rad_(1, 0))
+                {
+                    th23_candidates.row(th23_candidate_cnt) << th2_tmp1, th3_tmp;
+                    th23_candidate_cnt ++;
+                }
+                if(th2_tmp2 < thetamax_rad_(1, 1) && th2_tmp2 > thetamax_rad_(1, 0))
+                {
+                    th23_candidates.row(th23_candidate_cnt) << th2_tmp2, th3_tmp;
+                    th23_candidate_cnt ++;
+                }
+            }
+
+            // Second candidate
+            th3_tmp = 2 * atan((-d4 - sqrt(cond2)) / (a3 + f1 + eps));
+            f1 = -sin(th3_tmp) * d4 + a3 * cos(th3_tmp);
+            f2 = cos(th3_tmp) * d4 + a3 * sin(th3_tmp);
+            t1 = f1 + a2;
+            k = pow(f1, 2) + pow(f2, 2) + 2 * f1 * a2 + a12 + a22;
+            t2 = (r2 - k) / (2 * a1 + eps);
+            t1 = f2;
+            t2 = -f1-a2;
+            t3 = Z;
+            th2_tmp1 = 2 * atan((t2 + sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3 + eps)) + PI / 2;
+            th2_tmp2 = 2 * atan((t2 - sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3 + eps)) + PI / 2;
+            if(th3_tmp < thetamax_rad_(2, 1) && th3_tmp > thetamax_rad_(2, 0))
+            {
+                if(th2_tmp1 < thetamax_rad_(1, 1) && th2_tmp1 > thetamax_rad_(1, 0))
+                {
+                    th23_candidates.row(th23_candidate_cnt) << th2_tmp1, th3_tmp;
+                    th23_candidate_cnt ++;
+                }
+                if(th2_tmp2 < thetamax_rad_(1, 1) && th2_tmp2 > thetamax_rad_(1, 0))
+                {
+                    th23_candidates.row(th23_candidate_cnt) << th2_tmp2, th3_tmp;
+                    th23_candidate_cnt ++;
+                }
+            }
+        }
+        f1 = (-2 * l - sqrt(cond1)) / (8 * a22 + eps);
+        cond2 = d42 + a32 - pow(f1, 2);
+        if(cond2)
+        {
+            // Third candidate
+            th3_tmp = 2 * atan((-d4 + sqrt(cond2)) / (a3 + f1 + eps));
+            f1 = -sin(th3_tmp) * d4 + a3 * cos(th3_tmp);
+            f2 = cos(th3_tmp) * d4 + a3 * sin(th3_tmp);
+            t1 = f1 + a2;
+            k = pow(f1, 2) + pow(f2, 2) + 2 * f1 * a2 + a12 + a22;
+            t2 = (r2 - k) / (2 * a1 + eps);
+            t1 = f2;
+            t2 = -f1-a2;
+            t3 = Z;
+            th2_tmp1 = 2 * atan((t2 + sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3 + eps)) + PI / 2;
+            th2_tmp2 = 2 * atan((t2 - sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3 + eps)) + PI / 2;
+            if(th3_tmp < thetamax_rad_(2, 1) && th3_tmp > thetamax_rad_(2, 0))
+            {
+                if(th2_tmp1 < thetamax_rad_(1, 1) && th2_tmp1 > thetamax_rad_(1, 0))
+                {
+                    th23_candidates.row(th23_candidate_cnt) << th2_tmp1, th3_tmp;
+                    th23_candidate_cnt ++;
+                }
+                if(th2_tmp2 < thetamax_rad_(1, 1) && th2_tmp2 > thetamax_rad_(1, 0))
+                {
+                    th23_candidates.row(th23_candidate_cnt) << th2_tmp2, th3_tmp;
+                    th23_candidate_cnt ++;
+                }
+            }
+            
+            // Fourth candidate
+            th3_tmp = 2 * atan((-d4 - sqrt(cond2)) / (a3 + f1 + eps));
+            f1 = -sin(th3_tmp) * d4 + a3 * cos(th3_tmp);
+            f2 = cos(th3_tmp) * d4 + a3 * sin(th3_tmp);
+            t1 = f1 + a2;
+            k = pow(f1, 2) + pow(f2, 2) + 2 * f1 * a2 + a12 + a22;
+            t2 = (r2 - k) / (2 * a1 + eps);
+            t1 = f2;
+            t2 = -f1-a2;
+            t3 = Z;
+            th2_tmp1 = 2 * atan((t2 + sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3 + eps)) + PI / 2;
+            th2_tmp2 = 2 * atan((t2 - sqrt(pow(t2, 2) + pow(t1, 2) - pow(t3, 2))) / (t1 + t3 + eps)) + PI / 2;
+            if(th3_tmp < thetamax_rad_(2, 1) && th3_tmp > thetamax_rad_(2, 0))
+            {
+                if(th2_tmp1 < thetamax_rad_(1, 1) && th2_tmp1 > thetamax_rad_(1, 0))
+                {
+                    th23_candidates.row(th23_candidate_cnt) << th2_tmp1, th3_tmp;
+                    th23_candidate_cnt ++;
+                }
+                if(th2_tmp2 < thetamax_rad_(1, 1) && th2_tmp2 > thetamax_rad_(1, 0))
+                {
+                    th23_candidates.row(th23_candidate_cnt) << th2_tmp2, th3_tmp;
+                    th23_candidate_cnt ++;
+                }
+            }
+        }
+    }
+    else
+    {
+        status = false;
+        return cur_q;
+    }
+    
+    Eigen::MatrixXd th1_candidates, candidates;
+    Eigen::Matrix4d verify_T;
+    th1_candidates.resize(2, 1);
+    candidates.resize(32, njoints_);
+    double th1_tmp1, th1_tmp2;
+    for(int i=0; i<th23_candidate_cnt; i++)
+    {
+        th2_tmp = th23_candidates(i, 0) - PI / 2;
+        th3_tmp = th23_candidates(i, 1);
+        th1_candidate_cnt = 0;
+
+        g1 = f1 * cos(th2_tmp) + f2 * sin(th2_tmp) + a2 * cos(th2_tmp);
+        g2 = f1 * sin(th2_tmp) - f2 * cos(th2_tmp) + a2 * sin(th2_tmp);
+        q1 = g1+a1;
+        q2 = 0;
+        cond1 = pow(q2, 2) + pow(q1, 2) - pow(X, 2);
+        q1 = 0;
+        q2 = g1+a1;
+        th1_tmp1 = 2 * atan((q2 + sqrt(pow(q2, 2) + pow(q1, 2) - pow(Y, 2))) / (q1 + Y + eps));
+        th1_tmp2 = 2 * atan((q2 - sqrt(pow(q2, 2) + pow(q1, 2) - pow(Y, 2))) / (q1 + Y + eps));
+        if(th1_tmp1 < thetamax_rad_(0, 1) && th1_tmp1 > thetamax_rad_(0, 0))
+        {
+            th1_candidates.row(th1_candidate_cnt) << th1_tmp1;
+            th1_candidate_cnt ++;
+        }
+        if(th1_tmp2 < thetamax_rad_(0, 1) && th1_tmp2 > thetamax_rad_(0, 0))
+        {
+            th1_candidates.row(th1_candidate_cnt) << th1_tmp2;
+            th1_candidate_cnt ++;
+        }
+        for(int j=0; j<th1_candidate_cnt; j++)
+        {
+            theta_tmp(0) = th1_candidates(j, 0);
+            theta_tmp(1) = th2_tmp + PI / 2;;
+            theta_tmp(2) = th3_tmp;
+            DH_cur.col(0) = DH.col(0) + theta_tmp;
+            Eigen::Matrix3d R03 = Eigen::Matrix3d::Identity(3, 3);
+            Eigen::MatrixXd a = DH_cur.col(3);
+            Eigen::MatrixXd q = DH_cur.col(0);
+            Eigen::Matrix3d temp(3, 3); 
+            for(int k=0; k<3; k++)
+            {
+                temp << cos(q(k)), -sin(q(k)) * cos(a(k)),  sin(q(k)) * sin(a(k)),  
+                        sin(q(k)),  cos(q(k)) * cos(a(k)), -cos(q(k)) * sin(a(k)),  
+                        0,          sin(a(k)),              cos(a(k));
+                R03 = R03 * temp;
+            }
+            Eigen::Matrix3d R36 = math::PInv(R03) * R;
+            th5_tmp = acos(-R36(2, 2));
+            double s5 = sin(th5_tmp) + eps;
+
+            if(abs(s5) <= 0.000001)
+            {
+                th4_tmp = 0;
+                th5_tmp = 0;
+                th6_tmp = atan2(R36(0, 1), R36(0, 0));
+                theta_tmp(3) = th4_tmp;
+                theta_tmp(4) = th5_tmp;
+                theta_tmp(5) = th6_tmp;
+                if(joint_in_range(theta_tmp, 1))
+                {
+                    candidates.row(all_candidate_cnt) << theta_tmp.transpose(); 
+                    all_candidate_cnt ++;
+                }
+
+                th5_tmp = PI;
+                th6_tmp = atan2(R36(1, 0), -R36(1, 1));
+                theta_tmp(3) = th4_tmp;
+                theta_tmp(4) = th5_tmp;
+                theta_tmp(5) = th6_tmp;
+                if(joint_in_range(theta_tmp, 1))
+                {
+                    candidates.row(all_candidate_cnt) << theta_tmp.transpose(); 
+                    all_candidate_cnt ++;
+                }
+            }
+            else
+            {
+                double th4_1 = atan2(R36(1, 2) / s5, R36(0, 2) / s5);
+                double th6_1 = atan2(R36(2, 1) / s5, R36(2, 0) / s5);
+                double sum1 = sqrt(pow(th5_tmp, 2) + pow(th4_1, 2) + pow(th6_1, 2));
+                s5 = sin(-th5_tmp);
+                double th4_2 = atan2(R36(1, 2) / s5, R36(0, 2) / s5);
+                double th6_2 = atan2(R36(2, 1) / s5, R36(2, 0) / s5);
+                double sum2 = sqrt(pow(th5_tmp, 2) + pow(th4_2, 2) + pow(th6_2, 2));
+
+                th4_tmp = th4_1;
+                th6_tmp = th6_1;
+                theta_tmp(3) = th4_tmp;
+                theta_tmp(4) = th5_tmp;
+                theta_tmp(5) = th6_tmp;
+                if(joint_in_range(theta_tmp, 1))
+                {
+                    candidates.row(all_candidate_cnt) << theta_tmp.transpose(); 
+                    all_candidate_cnt ++;
+                }
+                
+                th5_tmp = -th5_tmp;
+                th4_tmp = th4_2;
+                th6_tmp = th6_2;
+                theta_tmp(3) = th4_tmp;
+                theta_tmp(4) = th5_tmp;
+                theta_tmp(5) = th6_tmp;
+                if(joint_in_range(theta_tmp, 1))
+                {
+                    candidates.row(all_candidate_cnt) << theta_tmp.transpose(); 
+                    all_candidate_cnt ++;
+                }
+            } 
+        }  
+    }
+    status = false;
+    for(int i=0; i<all_candidate_cnt; i++)
+    {   
+        theta_tmp = candidates.row(i);
+        verify_T = math::FK(theta_tmp, DH, base_frame_, 1);
+        if(verify_T.isApprox(goal_T, 0.01) && (theta_tmp - cur_theta).norm() < min_diff)// && joint_in_range(theta_tmp, 1))
+        {
+            theta = theta_tmp;
+            min_diff = (theta_tmp - cur_theta).norm();
+            status = true;            
+        }
+    }
+    if(!status)
+    {
+        return cur_q;
+    }
+
+    // Rad to Deg
+    for(int i=0; i<theta.rows(); i++)
+    {
+        theta(i) = theta(i) * 180 / PI;
+    }
+    return theta;
+}
+
+bool Robot::joint_in_range(const math::VectorJd& theta, const bool& is_rad)
+{
+    math::VectorJd theta_deg = theta;
+    if(is_rad)
+    {
+        // Rad to Deg
+        for(int i=0; i<theta.rows(); i++)
+        {
+            theta_deg(i) = theta_deg(i) / PI * 180;
+        }
+    }
+    for(int i=0; i<theta.rows(); i++)
+    {
+        if(theta_deg(i) < thetamax_(i, 0) || theta_deg(i) > thetamax_(i, 1))
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 math::VectorJd Robot::JSSA(const math::VectorJd& jerk_ref)
@@ -649,139 +977,140 @@ math::VectorJd Robot::pid(const math::VectorJd& goal)
     return jerk;
 }
 
-math::VectorJd Robot::pid_dq(const math::VectorJd& goal)
-{
-    Eigen::MatrixXd cart_T_cur = math::FK(q_, DH_, base_frame_, false);
-    Eigen::MatrixXd cart_T_goal = math::FK(goal, DH_, base_frame_, false);
-    Eigen::MatrixXd cart_T_goal_last = math::FK(last_target_goal, DH_, base_frame_, false);
-    last_target_goal = goal;
-    math::VectorJd vel = Eigen::MatrixXd::Zero(6, 1);
-    math::VectorJd acc = Eigen::MatrixXd::Zero(6, 1);
-    math::VectorJd jerk = Eigen::MatrixXd::Zero(6, 1);
+// math::VectorJd Robot::pid_dq(const math::VectorJd& goal)
+// {
+//     Eigen::MatrixXd cart_T_cur = math::FK(q_, DH_, base_frame_, false);
+//     Eigen::MatrixXd cart_T_goal = math::FK(goal, DH_, base_frame_, false);
+//     Eigen::MatrixXd cart_T_goal_last = math::FK(last_target_goal, DH_, base_frame_, false);
+//     last_target_goal = goal;
+//     math::VectorJd vel = Eigen::MatrixXd::Zero(6, 1);
+//     math::VectorJd acc = Eigen::MatrixXd::Zero(6, 1);
+//     math::VectorJd jerk = Eigen::MatrixXd::Zero(6, 1);
 
-    // calcualte the cartesian difference d_x
-    Eigen::Matrix3d rot_cur = cart_T_cur.block(0, 0, 3, 3);
-    Eigen::MatrixXd pos_cur = cart_T_cur.block(0, 3, 3, 1);
-    Eigen::Quaterniond quat_cur(rot_cur);
+//     // calcualte the cartesian difference d_x
+//     Eigen::Matrix3d rot_cur = cart_T_cur.block(0, 0, 3, 3);
+//     Eigen::MatrixXd pos_cur = cart_T_cur.block(0, 3, 3, 1);
+//     Eigen::Quaterniond quat_cur(rot_cur);
     
-    Eigen::Matrix3d rot_goal = cart_T_goal.block(0, 0, 3, 3);
-    Eigen::MatrixXd pos_goal = cart_T_goal.block(0, 3, 3, 1);
-    Eigen::Quaterniond quat_goal(rot_goal);
+//     Eigen::Matrix3d rot_goal = cart_T_goal.block(0, 0, 3, 3);
+//     Eigen::MatrixXd pos_goal = cart_T_goal.block(0, 3, 3, 1);
+//     Eigen::Quaterniond quat_goal(rot_goal);
 
-    Eigen::Matrix3d rot_goal_last = cart_T_goal_last.block(0, 0, 3, 3);
-    Eigen::MatrixXd pos_goal_last = cart_T_goal_last.block(0, 3, 3, 1);
-    Eigen::Quaterniond quat_goal_last(rot_goal_last);
+//     Eigen::Matrix3d rot_goal_last = cart_T_goal_last.block(0, 0, 3, 3);
+//     Eigen::MatrixXd pos_goal_last = cart_T_goal_last.block(0, 3, 3, 1);
+//     Eigen::Quaterniond quat_goal_last(rot_goal_last);
 
-    math::Vector6d d_x = math::get_6d_error(pos_cur, quat_cur, pos_goal, quat_goal);
-    math::Vector6d d_x_last = math::get_6d_error(pos_goal_last, quat_goal_last, pos_goal, quat_goal);
+//     math::Vector6d d_x = math::get_6d_error(pos_cur, quat_cur, pos_goal, quat_goal);
+//     math::Vector6d d_x_last = math::get_6d_error(pos_goal_last, quat_goal_last, pos_goal, quat_goal);
     
-    double alpha_target_vel = 0.4;
-    target_vel = alpha_target_vel * d_x_last + (1 - alpha_target_vel) * target_vel;
+//     double alpha_target_vel = 0.4;
+//     target_vel = alpha_target_vel * d_x_last + (1 - alpha_target_vel) * target_vel;
 
-    // calculate the jacobian of the current q
-    Eigen::MatrixXd J, J_inv, qd_cmd;
-    J = math::Jacobian_full(q_, DH_, base_frame_, 0);
-    J_inv = math::PInv(J);
-    qd_cmd = J_inv * (target_vel + d_x);
-    // apply PID control to track the target d_th and get the desired jerk
+//     // calculate the jacobian of the current q
+//     Eigen::MatrixXd J, J_inv, qd_cmd;
+//     J = math::Jacobian_full(q_, DH_, base_frame_, 0);
+//     J_inv = math::PInv(J);
+//     qd_cmd = J_inv * (target_vel + d_x);
+//     // apply PID control to track the target d_th and get the desired jerk
 
-    double p_pos = 3;
-    double i_pos = 0;
-    double d_pos = 0.99;
-    double p_vel = 10;
-    double i_vel = 0;
-    double d_vel = 0.1;
-    double p_acc = 10;
-    double i_acc = 0;
-    double d_acc = 0.5;
-    double err_pos = 0;
-    double err_vel = 0;
-    double err_acc = 0;
-    double vel_ref = 0;
-    double acc_ref = 0;
+//     double p_pos = 3;
+//     double i_pos = 0;
+//     double d_pos = 0.99;
+//     double p_vel = 10;
+//     double i_vel = 0;
+//     double d_vel = 0.1;
+//     double p_acc = 10;
+//     double i_acc = 0;
+//     double d_acc = 0.5;
+//     double err_pos = 0;
+//     double err_vel = 0;
+//     double err_acc = 0;
+//     double vel_ref = 0;
+//     double acc_ref = 0;
     
-    for(int idx=0; idx<njoints_; idx++)
-    {
-        if(abs(goal(idx) - q_(idx)) < pos_epsilon_)
-        {
-            resetPID(idx);
-        }
-    }
+//     for(int idx=0; idx<njoints_; idx++)
+//     {
+//         if(abs(goal(idx) - q_(idx)) < pos_epsilon_)
+//         {
+//             resetPID(idx);
+//         }
+//     }
 
 
-    for(int idx=0; idx<njoints_; idx++)
-    {
-        vel(idx) =  40*qd_cmd(idx);
-        // max_vel_rate = std::max(max_vel_rate, std::abs(vel(idx) / qd_max_(idx)));
-    }
-    // if(max_vel_rate > 1.0)
-    // {
-    //     vel = vel / max_vel_rate;
-    // }
+//     for(int idx=0; idx<njoints_; idx++)
+//     {
+//         vel(idx) =  40*qd_cmd(idx);
+//         // max_vel_rate = std::max(max_vel_rate, std::abs(vel(idx) / qd_max_(idx)));
+//     }
+//     // if(max_vel_rate > 1.0)
+//     // {
+//     //     vel = vel / max_vel_rate;
+//     // }
 
-    for(int idx=0; idx<njoints_; idx++)
-    {
-        err_vel = vel(idx) - qd_(idx);
+//     for(int idx=0; idx<njoints_; idx++)
+//     {
+//         err_vel = vel(idx) - qd_(idx);
 
-        // acc(idx) = err_vel / delta_t_;
+//         // acc(idx) = err_vel / delta_t_;
 
-        vel_err_sum_(idx) += err_vel;
-        if(last_vel_err_(idx) == 0)
-        {
-            last_vel_err_(idx) = err_vel;
-        }
-        acc(idx) = p_vel * err_vel + i_vel * vel_err_sum_(idx) * delta_t_ + d_vel * (err_vel - last_vel_err_(idx)) / delta_t_;
-        last_vel_err_(idx) = err_vel;
+//         vel_err_sum_(idx) += err_vel;
+//         if(last_vel_err_(idx) == 0)
+//         {
+//             last_vel_err_(idx) = err_vel;
+//         }
+//         acc(idx) = p_vel * err_vel + i_vel * vel_err_sum_(idx) * delta_t_ + d_vel * (err_vel - last_vel_err_(idx)) / delta_t_;
+//         last_vel_err_(idx) = err_vel;
         
-        // max_acc_rate = std::max(max_acc_rate, std::abs(acc(idx) / qdd_max_(idx)));
-    }
+//         // max_acc_rate = std::max(max_acc_rate, std::abs(acc(idx) / qdd_max_(idx)));
+//     }
 
-    // if(max_acc_rate > 1.0)
-    // {
-    //     acc = acc / max_acc_rate;
-    // }
+//     // if(max_acc_rate > 1.0)
+//     // {
+//     //     acc = acc / max_acc_rate;
+//     // }
     
-    for(int idx=0; idx<njoints_; idx++)
-    {
-        err_acc = acc(idx) - qdd_(idx);
+//     for(int idx=0; idx<njoints_; idx++)
+//     {
+//         err_acc = acc(idx) - qdd_(idx);
         
-        // jerk(idx) = err_acc / delta_t_;
+//         // jerk(idx) = err_acc / delta_t_;
 
-        acc_err_sum_(idx) += err_acc;
-        if(last_acc_err_(idx) == 0)
-        {
-            last_acc_err_(idx) = err_acc;
-        }
-        jerk(idx) = p_acc * err_acc + i_acc * acc_err_sum_(idx) * delta_t_ + d_acc * (err_acc - last_acc_err_(idx)) / delta_t_;
-        last_acc_err_(idx) = err_acc;
-
-
+//         acc_err_sum_(idx) += err_acc;
+//         if(last_acc_err_(idx) == 0)
+//         {
+//             last_acc_err_(idx) = err_acc;
+//         }
+//         jerk(idx) = p_acc * err_acc + i_acc * acc_err_sum_(idx) * delta_t_ + d_acc * (err_acc - last_acc_err_(idx)) / delta_t_;
+//         last_acc_err_(idx) = err_acc;
 
 
-        // Try to use DARE solver solution
-        // jerk(idx) = 0.9944 * (vel(idx) - qd_(idx)) + 1.4102 * (-1 * qdd_(idx));
 
-        // max_jerk_rate = std::max(max_jerk_rate, std::abs(jerk(idx) / qddd_max_(idx)));
-        jerk(idx) = std::min(std::max(jerk(idx), -qddd_max_(idx)), qddd_max_(idx));
-    }
-    // if(max_jerk_rate > 1.0)
-    // {
-    //     jerk = jerk / max_jerk_rate;
-    // }
+
+//         // Try to use DARE solver solution
+//         // jerk(idx) = 0.9944 * (vel(idx) - qd_(idx)) + 1.4102 * (-1 * qdd_(idx));
+
+//         // max_jerk_rate = std::max(max_jerk_rate, std::abs(jerk(idx) / thetadotdotmax_(idx)));
+//         jerk(idx) = std::min(std::max(jerk(idx), -thetadotdotmax_(idx)), thetadotdotmax_(idx));
+//     }
+//     // if(max_jerk_rate > 1.0)
+//     // {
+//     //     jerk = jerk / max_jerk_rate;
+//     // }
     
-    ROS_INFO_STREAM("!!!!!!!!!!!!!!!");
-    ROS_INFO_STREAM(jerk);
-    return jerk;
+//     ROS_INFO_STREAM("!!!!!!!!!!!!!!!");
+//     ROS_INFO_STREAM(jerk);
+//     return jerk;
 
-}
+// }
 
 
 math::VectorJd Robot::pid_vel(math::VectorJd& goal)
 {
     for(int i=0; i<njoints_; i++)
     {
-        goal(i) = std::min(std::max(goal(i), q_max_(i, 0)), q_max_(i, 1));
+        goal(i) = std::min(std::max(goal(i), thetamax_(i, 0)), thetamax_(i, 1));
     }
+    
     // if(abs(goal(4)) < 10)
     // {
     //     goal(5) = goal(5) + goal(3) - q_(3);
@@ -791,9 +1120,9 @@ math::VectorJd Robot::pid_vel(math::VectorJd& goal)
     //     ROS_INFO_STREAM(goal);
     //     // exit(0);
     // }
-    // ROS_INFO_STREAM("goal");
     Eigen::MatrixXd cart_T_cur = math::FK(q_, DH_, base_frame_, false);
     Eigen::MatrixXd cart_T_goal = math::FK(goal, DH_, base_frame_, false);
+    
     Eigen::MatrixXd cart_T_goal_last = math::FK(last_target_goal, DH_, base_frame_, false);
     last_target_goal = goal;
     math::VectorJd vel = Eigen::MatrixXd::Zero(6, 1);
@@ -812,13 +1141,13 @@ math::VectorJd Robot::pid_vel(math::VectorJd& goal)
     Eigen::Matrix3d rot_goal_last = cart_T_goal_last.block(0, 0, 3, 3);
     Eigen::MatrixXd pos_goal_last = cart_T_goal_last.block(0, 3, 3, 1);
     Eigen::Quaterniond quat_goal_last(rot_goal_last);
-
+    
     math::Vector6d d_x = math::get_6d_error(pos_cur, quat_cur, pos_goal, quat_goal);
     math::Vector6d d_x_last = math::get_6d_error(pos_goal_last, quat_goal_last, pos_goal, quat_goal);
     
     double alpha_target_vel = 0.7;
     target_vel = alpha_target_vel * d_x_last + (1 - alpha_target_vel) * target_vel;
-
+    
     // calculate the jacobian of the current q
     double ori_vel_scale = 2.0;
     d_x(3) = d_x(3) * ori_vel_scale;
@@ -835,17 +1164,11 @@ math::VectorJd Robot::pid_vel(math::VectorJd& goal)
     // ROS_INFO_STREAM(d_x);//target_vel + 2 * d_x);
     double determinant = J.determinant();
     // ROS_INFO_STREAM(determinant);
-    if(abs(determinant) < 0.07)
+    if(abs(determinant) < 0.01)
     {
-        // if(abs(goal(4)) < 10)
-        // {
-        //     goal(5) = goal(5) + goal(3) - q_(3);
-        //     goal(3) = q_(3);
-        //     // sleep(2);
-        //     // ROS_INFO_STREAM("Less 10");
-        //     // ROS_INFO_STREAM(goal);
-        //     // exit(0);
-        // }
+        ROS_INFO_STREAM("Singularity");
+        ROS_INFO_STREAM(abs(determinant));
+        ROS_INFO_STREAM(goal);
         qd_cmd = (goal - q_);
     }
     else
@@ -882,7 +1205,7 @@ math::VectorJd Robot::pid_vel(math::VectorJd& goal)
 
     for(int i=0; i<njoints_; i++)
     {
-        q_goal(i) = std::min(std::max(q_goal(i), q_max_(i, 0)), q_max_(i, 1));
+        q_goal(i) = std::min(std::max(q_goal(i), thetamax_(i, 0)), thetamax_(i, 1));
     }
     // ROS_INFO_STREAM(q_goal);
     
@@ -901,7 +1224,7 @@ math::VectorJd Robot::pid_vel(math::VectorJd& goal)
     double vel_ref = 0;
     double acc_ref = 0;
     jerk = Eigen::MatrixXd::Zero(6, 1);
-
+    
     for(int idx=0; idx<njoints_; idx++)
     {
         err_pos = q_goal(idx) - q_(idx);
@@ -939,7 +1262,7 @@ math::VectorJd Robot::pid_vel(math::VectorJd& goal)
         //     // ROS_INFO_STREAM(jerk(idx));
         // }
         
-        jerk(idx) = std::min(std::max(jerk(idx), -qddd_max_(idx)), qddd_max_(idx));
+        jerk(idx) = std::min(std::max(jerk(idx), -thetadotdotmax_(idx)), thetadotdotmax_(idx));
     }
     // ROS_INFO_STREAM(jerk);
     // ROS_INFO_STREAM("\n");
@@ -976,11 +1299,11 @@ math::VectorJd Robot::step(const math::VectorJd& jerk, const math::VectorJd& goa
         else
         {
             X << q_(i), qd_(i), qdd_(i);
-            jerk_clipped(i) = std::min(std::max(jerk(i), -qddd_max_(i)), qddd_max_(i));
+            jerk_clipped(i) = std::min(std::max(jerk(i), -thetadotdotmax_(i)), thetadotdotmax_(i));
 
             
             unew = Adt_ * X + Bdt_ * jerk_clipped(i);
-            // unew(0) = std::min(std::max(unew(0), q_max_(i, 0)), q_max_(i, 1));
+            // unew(0) = std::min(std::max(unew(0), thetamax_(i, 0)), thetamax_(i, 1));
             // unew(1) = std::min(std::max(unew(1), -qd_max_(i)), qd_max_(i));
             // unew(2) = std::min(std::max(unew(2), -qdd_max_(i)), qdd_max_(i));
 

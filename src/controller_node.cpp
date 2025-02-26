@@ -78,6 +78,7 @@ int main(int argc, char **argv)
         stmotion_controller::udp::UDP_Interface::Ptr robot_connection = std::make_shared<stmotion_controller::udp::UDP_Interface>();
         stmotion_controller::math::VectorJd q;
         stmotion_controller::robot::Robot::Ptr robot = std::make_shared<stmotion_controller::robot::Robot>();
+        
         robot->Setup(DH_fname, robot_base_fname);
         robot->set_JPC_speed(jpc_travel_time);
         robot->print_robot_property();
@@ -87,6 +88,8 @@ int main(int argc, char **argv)
         ros::Subscriber jpc_travel_time_sub = nh.subscribe("jpc_travel_time", 1, jpcTravelTimeCallback);
         ros::Publisher robot_state_pub = nh.advertise<std_msgs::Float32MultiArray>("robot_state", robot->robot_dof() * 3); // pos, vel, acc
         ros::Publisher robot_state_cart_pub = nh.advertise<std_msgs::Float32MultiArray>("robot_state_cart", 16); // pos, vel, acc
+        ros::Publisher cap_state_cart_pub = nh.advertise<std_msgs::Float32MultiArray>("cap_state_cart", 16); // pos, vel, acc
+        
         ros::Subscriber goal_sub = nh.subscribe("robot_goal", robot->robot_dof(), goalCallback);
         ros::Subscriber human_state_sub = nh.subscribe("human_state", 42, humanStateCallback);
         ros::Publisher j1_pub = nh.advertise<std_msgs::Float64>(j1_topic, 1);
@@ -97,6 +100,7 @@ int main(int argc, char **argv)
         ros::Publisher j6_pub = nh.advertise<std_msgs::Float64>(j6_topic, 1);
         std_msgs::Float32MultiArray robot_state_msg;
         std_msgs::Float32MultiArray robot_state_cart_msg;
+        std_msgs::Float32MultiArray cap_state_cart_msg;
         std_msgs::Float64 j1_msg;
         std_msgs::Float64 j2_msg;
         std_msgs::Float64 j3_msg;
@@ -120,6 +124,7 @@ int main(int argc, char **argv)
         {
             jerk_ref = robot->jpc(controller_goal);
         }
+        
         q = robot->step(jerk_ref, controller_goal);
 
         while(ros::ok)
@@ -153,6 +158,7 @@ int main(int argc, char **argv)
             // Publish the current cartesian transformation matrix of the end effector
             Eigen::MatrixXd cart_T_current = stmotion_controller::math::FK(cur_q, robot->robot_DH(), robot->robot_base(), false);
             robot_state_cart_msg.data.clear();
+            cap_state_cart_msg.data.clear();
             for(int i=0; i<4; i++)
             {
                 for(int j=0; j<4; j++)
@@ -160,16 +166,18 @@ int main(int argc, char **argv)
                      robot_state_cart_msg.data.push_back(cart_T_current(i,j));
                 }
             }
+            cap_state_cart_msg.data.push_back(robot->cap_cur_[5].r);
+            for(int j=0; j<3; j++)
+            {
+                cap_state_cart_msg.data.push_back(robot->cap_cur_[4].p.col(0)[j]);
+                cap_state_cart_msg.data.push_back(robot->cap_cur_[4].p.col(1)[j]);
+            }
             robot_state_cart_pub.publish(robot_state_cart_msg);
-
+            cap_state_cart_pub.publish(cap_state_cart_msg);
             // Calculate control command
             if(nominal_mode.compare("pid") == 0)
             {
                 jerk_ref = robot->pid(controller_goal);
-            }
-            else if(nominal_mode.compare("pid_dq") == 0)
-            {
-                jerk_ref = robot->pid_dq(controller_goal);
             }
             else if(nominal_mode.compare("pid_vel") == 0)
             {

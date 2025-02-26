@@ -14,13 +14,13 @@ class Robot
     public:
         typedef std::shared_ptr<Robot> Ptr;
         typedef std::shared_ptr<Robot const> ConstPtr;
-
+        stmotion_controller::math::Capsule cap_cur_[6];
     /* -------------------------------------------------------------------------- */
     /*                                  variables                                 */
     /* -------------------------------------------------------------------------- */
     private:
         int njoints_ = 6;
-        double margin_ = 0.05; // m
+        double margin_ = 0.0; // m
         double delta_t_ = 0.008; // s. Traj frequency
         std::string robot_name_ = "FANUC LRMate200iD7L";
         Eigen::MatrixXd q_;
@@ -29,10 +29,10 @@ class Robot
         math::VectorJd goal_ = Eigen::MatrixXd::Constant(6, 1, 0);
         math::VectorJd goal_qd_ = Eigen::MatrixXd::Constant(6, 1, 0);
 
-        Eigen::MatrixXd q_max_; // njoints_ x 2
-        Eigen::MatrixXd qd_max_; // njoints_ x 1
-        Eigen::MatrixXd qdd_max_; // njoints_ x 1
-        Eigen::MatrixXd qddd_max_; // njoints_ x 1
+        Eigen::MatrixXd thetamax_; // njoints_ x 2
+        Eigen::MatrixXd thetamax_rad_;
+        Eigen::MatrixXd thetadotmax_; // njoints_ x 2
+        Eigen::MatrixXd thetadotdotmax_; // njoints_ x 2
         double pos_epsilon_ = 5;
         double vel_epsilon_ = 0.000001;
         double acc_epsilon_ = 0.000001;
@@ -49,7 +49,7 @@ class Robot
         Eigen::MatrixXd Ac_;
         Eigen::MatrixXd Bc_;
         stmotion_controller::math::Capsule cap_[6];
-        stmotion_controller::math::Capsule cap_cur_[6];
+        
         Eigen::MatrixXd M_[8];
         double critical_dist_ = 10000.0;
         Eigen::MatrixXd critical_pts_;
@@ -144,7 +144,7 @@ class Robot
         // Operations
         void Setup(const std::string& DH_fname, const std::string& base_fname);
         math::VectorJd pid(const math::VectorJd& goal);
-        math::VectorJd pid_dq(const math::VectorJd& goal);
+        // math::VectorJd pid_dq(const math::VectorJd& goal);
         math::VectorJd pid_vel(math::VectorJd& goal_vel);
         math::VectorJd jpc(const math::VectorJd& goal);
         math::VectorJd JSSA(const math::VectorJd& jerk_ref);
@@ -152,6 +152,10 @@ class Robot
         bool is_static();
         bool reached_goal(math::VectorJd goal);
         int ssa_status() {return ssa_on_;};
+        bool joint_in_range(const math::VectorJd& theta, const bool& is_rad);
+        math::VectorJd IK(const math::VectorJd& cur_q, const Eigen::Matrix4d& goal_T, const Eigen::MatrixXd& DH,
+                          const Eigen::Matrix4d& T_tool_inv, const bool& joint_rad, bool& status);
+
 };
 }
 }
