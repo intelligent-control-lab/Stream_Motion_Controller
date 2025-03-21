@@ -83,8 +83,8 @@ int main(int argc, char **argv)
                 cart_T_current.block(0, 3, 3, 1) = cart_T_current.block(0, 3, 3, 1) + cart_T_teleop.block(0, 3, 3, 1);
             
 
-                cart_T_current(0, 3) = std::min(std::max(cart_T_current(0, 3), 0.3), 0.8);
-                cart_T_current(1, 3) = std::min(std::max(cart_T_current(1, 3), -0.3), 0.3);
+                cart_T_current(0, 3) = std::min(std::max(cart_T_current(0, 3), 0.1), 0.8);
+                cart_T_current(1, 3) = std::min(std::max(cart_T_current(1, 3), -0.3), 0.5);
                 cart_T_current(2, 3) = std::min(std::max(cart_T_current(2, 3), 0.25), 0.7);
 
                 // cur_goal_teleop =  stmotion_controller::math::IK_closed_form(cur_goal, cart_T_current, robot->robot_DH(), 
@@ -93,9 +93,9 @@ int main(int argc, char **argv)
             } 
             if(teleop_mode == 2.0)
             { 
-                ROS_INFO_STREAM("Immediately after IK");
-                ROS_INFO_STREAM(cart_T_teleop);  
-                ROS_INFO_STREAM(cart_T_current);  
+                // ROS_INFO_STREAM("Immediately after IK");
+                // ROS_INFO_STREAM(cart_T_teleop);  
+                // ROS_INFO_STREAM(cart_T_current);  
                 cart_T_current.block(0, 0, 3, 3) = cart_T_teleop.block(0, 0, 3, 3);
                 cart_T_current.block(0, 3, 3, 1) = cart_T_teleop.block(0, 3, 3, 1);
 
@@ -117,13 +117,15 @@ int main(int argc, char **argv)
             //                                                             robot->robot_base_inv(), robot->robot_ee_inv(), 0, IK_status);
             
             cur_goal_teleop = robot->IK(cur_goal, cart_T_current, robot->robot_DH(),robot->robot_ee_inv(), 0, IK_status);
-            ROS_INFO_STREAM(cur_goal_teleop);
+            // ROS_INFO_STREAM(cur_goal_teleop);
             Eigen::MatrixXd tmpT = stmotion_controller::math::FK(cur_goal_teleop, robot->robot_DH(), robot->robot_base(), false);
-            ROS_INFO_STREAM("Cart T:");
+
+            ROS_INFO_STREAM("cart_T:");
             ROS_INFO_STREAM(cart_T_current);
-            ROS_INFO_STREAM(cur_goal_teleop);
-            ROS_INFO_STREAM(cur_goal);
-            ROS_INFO_STREAM(IK_status);
+            // ROS_INFO_STREAM(cur_goal_teleop);
+            // ROS_INFO_STREAM(cur_goal);
+            // ROS_INFO_STREAM(IK_status);
+            ROS_INFO_STREAM("tmpT:");
             ROS_INFO_STREAM(tmpT);
                                                                  
             // cur_goal_teleop =  stmotion_controller::math::IK(cur_goal, cart_T_current.block(0, 3, 3, 1), cart_T_current.block(0, 0, 3, 3), 
@@ -149,8 +151,10 @@ int main(int argc, char **argv)
                     invalid = true;
                     break;
                 }
-                if(std::abs(cur_goal_teleop(1) - cur_goal(1)) > 45) 
+                if(std::abs(cur_goal_teleop(1) - cur_goal(1)) > 65) 
                 {
+                    ROS_INFO_STREAM("std::abs(cur_goal_teleop(1) - cur_goal(1)):");
+                    ROS_INFO_STREAM(std::abs(cur_goal_teleop(1) - cur_goal(1)));
                     invalid = true;
                     break;
                 }
@@ -160,9 +164,10 @@ int main(int argc, char **argv)
             {
                 cur_goal = cur_goal_teleop;
             }
-            // ROS_INFO_STREAM("###########");
-            // ROS_INFO_STREAM(cur_goal);
-            // ROS_INFO_STREAM(cur_goal_teleop);
+            ROS_INFO_STREAM("invalid:");
+            ROS_INFO_STREAM(invalid);
+            ROS_INFO_STREAM("cur_goal:");
+            ROS_INFO_STREAM(cur_goal);
             // ROS_INFO_STREAM(IK_status);
             // ROS_INFO_STREAM(cart_T_current);
             
