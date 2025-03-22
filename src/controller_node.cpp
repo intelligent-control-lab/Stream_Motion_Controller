@@ -35,7 +35,7 @@ int main(int argc, char **argv)
         double jpc_travel_time = 0.0;
         ros::init(argc, argv, "stmotion_controller_node");
         ros::NodeHandle nh("~");
-        ROS_INFO_STREAM("namespace of nh = " << nh.getNamespace());
+        // ROS_INFO_STREAM("namespace of nh = " << nh.getNamespace());
         std::string config_fname, root_pwd, DH_fname, robot_base_fname, robot_ip, nominal_mode;
         std::string j1_topic, j2_topic, j3_topic, j4_topic, j5_topic, j6_topic;
         nh.getParam("config_fname", config_fname);
@@ -59,19 +59,19 @@ int main(int argc, char **argv)
         nominal_mode = config["Nominal_mode"].asString();
         new_jpc_travel_time = jpc_travel_time;
         Eigen::MatrixXd cur_q, cur_qd, cur_qdd;
-        ROS_INFO_STREAM("Config fname: " << config_fname);
-        ROS_INFO_STREAM("Root pwd: " << root_pwd);
-        ROS_INFO_STREAM("DH fname: " << DH_fname);
-        ROS_INFO_STREAM("Robot base fname: " << robot_base_fname);
-        ROS_INFO_STREAM("SSA_Enable: " << ssa_enb);
-        ROS_INFO_STREAM("Robot IP: " << robot_ip);
-        ROS_INFO_STREAM("J1 topic: " << j1_topic);
-        ROS_INFO_STREAM("J2 topic: " << j2_topic);
-        ROS_INFO_STREAM("J3 topic: " << j3_topic);
-        ROS_INFO_STREAM("J4 topic: " << j4_topic);
-        ROS_INFO_STREAM("J5 topic: " << j5_topic);
-        ROS_INFO_STREAM("J6 topic: " << j6_topic);
-        ROS_INFO_STREAM("Nominal controller mode: " << nominal_mode);
+        // ROS_INFO_STREAM("Config fname: " << config_fname);
+        // ROS_INFO_STREAM("Root pwd: " << root_pwd);
+        // ROS_INFO_STREAM("DH fname: " << DH_fname);
+        // ROS_INFO_STREAM("Robot base fname: " << robot_base_fname);
+        // ROS_INFO_STREAM("SSA_Enable: " << ssa_enb);
+        // ROS_INFO_STREAM("Robot IP: " << robot_ip);
+        // ROS_INFO_STREAM("J1 topic: " << j1_topic);
+        // ROS_INFO_STREAM("J2 topic: " << j2_topic);
+        // ROS_INFO_STREAM("J3 topic: " << j3_topic);
+        // ROS_INFO_STREAM("J4 topic: " << j4_topic);
+        // ROS_INFO_STREAM("J5 topic: " << j5_topic);
+        // ROS_INFO_STREAM("J6 topic: " << j6_topic);
+        // ROS_INFO_STREAM("Nominal controller mode: " << nominal_mode);
         ros::Rate loop_rate(150);
         unsigned int microsecond = 1000;
 
@@ -135,8 +135,8 @@ int main(int argc, char **argv)
                 robot->set_JPC_speed(new_jpc_travel_time);
                 jpc_travel_time = new_jpc_travel_time;
                   
-                ROS_INFO_STREAM("Update jpc time");
-                ROS_INFO_STREAM(jpc_travel_time);
+                // ROS_INFO_STREAM("Update jpc time");
+                // ROS_INFO_STREAM(jpc_travel_time);
             }
 
             // Get robot status
@@ -231,7 +231,7 @@ int main(int argc, char **argv)
             robot_connection->SendEndPack();
             robot_connection->Shutdown();
         }
-        ROS_INFO_STREAM("Controller exit!");
+        // ROS_INFO_STREAM("Controller exit!");
         ros::shutdown();
         return 0;
     }
