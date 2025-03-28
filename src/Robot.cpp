@@ -84,10 +84,10 @@ void Robot::Setup(const std::string& DH_fname, const std::string& base_fname)
                  -160, 160,
                  -120, 120,
                  -300, 300;
-    // thetadotmax_ << 370, 310, 410, 550, 545, 1000;
-    thetadotmax_ << 270, 210, 310, 450, 445, 900;
-    // thetadotdotmax_ << 3211.0, 2690.0, 5125.0, 14868.0, 16632.0, 6377.0;
-    thetadotdotmax_ << 2500.0, 2500.0, 4500.0, 13000.0, 15000.0, 5000.0;
+    // thetadotmax_ << 370, 310, 410, 550, 545, 1000; // for simulation
+    thetadotmax_ << 270, 210, 310, 450, 445, 900; // for real robot
+    // thetadotdotmax_ << 3211.0, 2690.0, 5125.0, 14868.0, 16632.0, 6377.0; // for simulation
+    thetadotdotmax_ << 2000.0, 2000.0, 4000.0, 12000.0, 14000.0, 4000.0; // for real robot
     for(int i=0; i<njoints_; i++)
     {
         q_.row(i) << 0.0;
@@ -148,7 +148,7 @@ void Robot::Setup(const std::string& DH_fname, const std::string& base_fname)
     cap_[4].p.resize(3, 2);
     cap_[4].p.col(0) << 0, 0, 0.01;
     cap_[4].p.col(1) << 0, 0, -0.2;
-    cap_[4].r = 0.1;
+    cap_[4].r = 0.15;
 
     cap_[5].p.resize(3, 2);
     // cap_[5].p.col(0) << 0.05, 0, 0.1107;
@@ -1167,8 +1167,9 @@ math::VectorJd Robot::pid_vel(math::VectorJd& goal)
     J = math::Jacobian_full(q_, DH_, base_frame_, 0);
     J_inv = math::PInv(J);
 
-    d_x = d_x / 2.0;
-    
+    d_x = d_x / 2.0; // for real machine
+    // d_x = d_x / 1.0; // for simulation
+
     // ROS_INFO_STREAM(d_x);//target_vel + 2 * d_x);
     double determinant = J.determinant();
     // ROS_INFO_STREAM(determinant);

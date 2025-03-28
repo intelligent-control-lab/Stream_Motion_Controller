@@ -1,5 +1,7 @@
 #include "UDP_Interface.hpp"
 #include "Robot.hpp"
+#include <pthread.h>
+#include <sched.h>
 using namespace std::chrono;
 
 std::vector<stmotion_controller::math::Capsule> human_cap(6);
@@ -27,10 +29,20 @@ void jpcTravelTimeCallback(const std_msgs::Float64::ConstPtr& msg)
     new_jpc_travel_time = msg->data;
 }
 
+
+void set_realtime_priority() {
+    struct sched_param param;
+    param.sched_priority = 99;  // Highest real-time priority
+
+    if (pthread_setschedparam(pthread_self(), SCHED_FIFO, &param) != 0) {
+        perror("Failed to set real-time priority");
+    }
+}
 int main(int argc, char **argv)
 {
     try
     {
+        set_realtime_priority();
         bool use_robot, ssa_enb;
         double jpc_travel_time = 0.0;
         ros::init(argc, argv, "stmotion_controller_node");
@@ -171,6 +183,7 @@ int main(int argc, char **argv)
             {
                 cap_state_cart_msg.data.push_back(robot->cap_cur_[4].p.col(0)[j]);
                 cap_state_cart_msg.data.push_back(robot->cap_cur_[4].p.col(1)[j]);
+                
             }
             robot_state_cart_pub.publish(robot_state_cart_msg);
             cap_state_cart_pub.publish(cap_state_cart_msg);
