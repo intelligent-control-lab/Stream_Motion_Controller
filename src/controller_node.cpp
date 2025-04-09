@@ -84,7 +84,7 @@ int main(int argc, char **argv)
         // ROS_INFO_STREAM("J5 topic: " << j5_topic);
         // ROS_INFO_STREAM("J6 topic: " << j6_topic);
         // ROS_INFO_STREAM("Nominal controller mode: " << nominal_mode);
-        ros::Rate loop_rate(150);
+        ros::Rate loop_rate(125); // 142.857 Hz
         unsigned int microsecond = 1000;
 
         stmotion_controller::udp::UDP_Interface::Ptr robot_connection = std::make_shared<stmotion_controller::udp::UDP_Interface>();
@@ -119,7 +119,7 @@ int main(int argc, char **argv)
         std_msgs::Float64 j4_msg;
         std_msgs::Float64 j5_msg;
         std_msgs::Float64 j6_msg; 
-        
+        int last_seq_no = 0;
         
         human_cap = robot->human_cap();
         if(use_robot)
@@ -139,8 +139,11 @@ int main(int argc, char **argv)
         
         q = robot->step(jerk_ref, controller_goal);
 
+        recv_packet = robot_connection->Recv();
+        last_seq_no = recv_packet.seq_no;
         while(ros::ok)
         {
+            auto start = std::chrono::high_resolution_clock::now();
             // Update controller speed
             if(new_jpc_travel_time != jpc_travel_time && new_jpc_travel_time > 0)
             {  
@@ -210,11 +213,18 @@ int main(int argc, char **argv)
             }
 
             // Send to real robot
+            
             if(use_robot)
             {
-                robot_connection->Send(q, recv_packet.seq_no, 0, 1);
-                recv_packet = robot_connection->Recv();
+                robot_connection->Send(q, last_seq_no, 0, 1);
+                last_seq_no += 1;
+                // ROS_INFO_STREAM("recv_packet.seq_no is " << recv_packet.seq_no);
+                
+                // recv_packet = robot_connection->Recv();
+                // int delta_seq_no = recv_packet.seq_no - last_seq_no;
+                // last_seq_no = recv_packet.seq_no;
             }
+            
 
             // Publish to simulation
             j1_msg.data = cur_q(0) / 180 * PI;
@@ -230,12 +240,15 @@ int main(int argc, char **argv)
             j5_pub.publish(j5_msg);
             j6_pub.publish(j6_msg);
             q = robot->step(jerk_safe, controller_goal);
-
             if(!use_robot)
             {
                 usleep(7 * microsecond); // Pause <8ms to simulate the robot controller
             }
+            auto end = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration<double, std::milli>(end - start).count();
+            // std::cout << "Elapsed time here: " << duration << " ms "<<"delta_seq_no: " << last_seq_no << std::endl;
             ros::spinOnce();
+            loop_rate.sleep(); // Sleep to maintain loop frequency
         }
         if(use_robot)
         {

@@ -693,13 +693,13 @@ math::VectorJd Robot::JSSA(const math::VectorJd& jerk_ref)
         pid_threshold_step_ = Eigen::MatrixXd::Constant(njoints_, 1, -1);
         // std::cout << "Unsafe. Link R: " << critical_link1_ << " Link H: " << critical_link2_ << " Dist:" << dmin << " Phi: " << phi_safe_ << std::endl;
         ssa_on_ = 1;
-        ROS_INFO_STREAM("SSA is triggered!");
+        // ROS_INFO_STREAM("SSA is triggered!");
     }
     // Safe: do nothing
     else{
         // std::cout << "Safe. " << " Dist:" << dmin << std::endl;
         ssa_on_ = 0;
-        ROS_INFO_STREAM("SSA not triggered");
+        // ROS_INFO_STREAM("SSA not triggered");
     }
 
     for(int i=0; i<6; i++)
@@ -1151,8 +1151,8 @@ math::VectorJd Robot::pid_vel(math::VectorJd& goal)
     
     double alpha_target_vel = 0.7;
     target_vel = alpha_target_vel * d_x_last + (1 - alpha_target_vel) * target_vel;
-    ROS_INFO_STREAM("goal:");
-    ROS_INFO_STREAM(goal);
+    // ROS_INFO_STREAM("goal:");
+    // ROS_INFO_STREAM(goal);
     // ROS_INFO_STREAM("target_vel:");
     // ROS_INFO_STREAM(target_vel);
     
@@ -1175,9 +1175,9 @@ math::VectorJd Robot::pid_vel(math::VectorJd& goal)
     // ROS_INFO_STREAM(determinant);
     if(abs(determinant) < 0.01)
     {
-        ROS_INFO_STREAM("Singularity");
-        ROS_INFO_STREAM(abs(determinant));
-        ROS_INFO_STREAM(goal);
+        // ROS_INFO_STREAM("Singularity");
+        // ROS_INFO_STREAM(abs(determinant));
+        // ROS_INFO_STREAM(goal);
         qd_cmd = (goal - q_);
     }
     else
@@ -1220,8 +1220,8 @@ math::VectorJd Robot::pid_vel(math::VectorJd& goal)
     }
     // ROS_INFO_STREAM("q_goal:");
     // ROS_INFO_STREAM(q_goal);
-    ROS_INFO_STREAM("q_:");
-    ROS_INFO_STREAM(q_);
+    // ROS_INFO_STREAM("q_:");
+    // ROS_INFO_STREAM(q_);
     double p_pos = 150;
     double i_pos = 0;
     double d_pos = 0.99;
