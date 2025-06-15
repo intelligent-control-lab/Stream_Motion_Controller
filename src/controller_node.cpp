@@ -138,9 +138,12 @@ int main(int argc, char **argv)
         }
         
         q = robot->step(jerk_ref, controller_goal);
+        if(use_robot)
+        {
+            recv_packet = robot_connection->Recv();
+            last_seq_no = recv_packet.seq_no;
+        }
 
-        recv_packet = robot_connection->Recv();
-        last_seq_no = recv_packet.seq_no;
         while(ros::ok)
         {
             auto start = std::chrono::high_resolution_clock::now();

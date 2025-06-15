@@ -693,7 +693,7 @@ math::VectorJd Robot::JSSA(const math::VectorJd& jerk_ref)
         pid_threshold_step_ = Eigen::MatrixXd::Constant(njoints_, 1, -1);
         // std::cout << "Unsafe. Link R: " << critical_link1_ << " Link H: " << critical_link2_ << " Dist:" << dmin << " Phi: " << phi_safe_ << std::endl;
         ssa_on_ = 1;
-        // ROS_INFO_STREAM("SSA is triggered!");
+        ROS_INFO_STREAM("SSA is triggered!");
     }
     // Safe: do nothing
     else{
@@ -1222,10 +1222,11 @@ math::VectorJd Robot::pid_vel(math::VectorJd& goal)
     // ROS_INFO_STREAM(q_goal);
     // ROS_INFO_STREAM("q_:");
     // ROS_INFO_STREAM(q_);
-    double p_pos = 150;
+    // double p_pos = 150;
+    double p_pos = 260;
     double i_pos = 0;
     double d_pos = 0.99;
-    double p_vel = 10;
+    double p_vel = 15;
     double i_vel = 0;
     double d_vel = 0.1;
     double p_acc = 10;

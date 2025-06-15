@@ -85,7 +85,7 @@ int main(int argc, char **argv)
 
                 cart_T_current(0, 3) = std::min(std::max(cart_T_current(0, 3), 0.1), 0.8);
                 cart_T_current(1, 3) = std::min(std::max(cart_T_current(1, 3), -0.5), 0.5);
-                cart_T_current(2, 3) = std::min(std::max(cart_T_current(2, 3), 0.27), 0.7);
+                cart_T_current(2, 3) = std::min(std::max(cart_T_current(2, 3), 0.268), 0.7);
 
                 // cur_goal_teleop =  stmotion_controller::math::IK_closed_form(cur_goal, cart_T_current, robot->robot_DH(), 
                 //                                                         robot->robot_base_inv(), robot->robot_ee_inv(), 0, IK_status);
