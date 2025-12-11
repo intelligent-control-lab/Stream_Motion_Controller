@@ -54,6 +54,14 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 # /*                             Testing Executables                            */
 # /* -------------------------------------------------------------------------- */
 
+add_executable(${PROJECT_NAME}_sim_bringup
+  src/ros_nodes/controller_node_sim.cpp
+)
+target_link_libraries(${PROJECT_NAME}_sim_bringup
+    ${PROJECT_NAME}
+    ${catkin_LIBRARIES}
+)
+
 add_executable(${PROJECT_NAME}_controller_usage_example
   examples/cpp/controller_usage_example.cpp
 )
@@ -62,7 +70,7 @@ target_link_libraries(${PROJECT_NAME}_controller_usage_example
 )
 
 add_executable(${PROJECT_NAME}_bringup
-  src/controller_node.cpp
+  src/ros_nodes/controller_node.cpp
 )
 target_link_libraries(${PROJECT_NAME}_bringup
     ${PROJECT_NAME}

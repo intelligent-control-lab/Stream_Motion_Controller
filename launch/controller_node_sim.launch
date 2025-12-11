@@ -1,0 +1,5 @@
+<launch>
+    <node name="stmotion_controller_sim_bringup" pkg="stmotion_controller" type="stmotion_controller_sim_bringup" output="screen" required="true">
+        <param name="config_fname" value="$(find stmotion_controller)/config/user_config_sim.json"/>
+    </node>
+</launch>

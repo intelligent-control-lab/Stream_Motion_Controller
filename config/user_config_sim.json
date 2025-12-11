@@ -1,0 +1,29 @@
+{
+    "JPC_Travel_Time": 1,
+    "Num_Joints": 21,
+    "Robot_Name": "galaxea",
+    "Joint_Names":
+    {
+        "1": "steer1",
+        "2": "wheel1",
+        "3": "steer2",
+        "4": "wheel2",
+        "5": "steer3",
+        "6": "wheel3",
+        "7": "torso1",
+        "8": "torso2",
+        "9": "torso3",
+        "10": "left1",
+        "11": "left2",
+        "12": "left3",
+        "13": "left4",
+        "14": "left5",
+        "15": "left6",
+        "16": "right1",
+        "17": "right2",
+        "18": "right3",
+        "19": "right4",
+        "20": "right5",
+        "21": "right6"
+    }
+}
